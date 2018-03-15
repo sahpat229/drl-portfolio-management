@@ -116,37 +116,35 @@ class PortfolioSim(object):
         self.steps = steps
 
     def _step(self, w1, y1):
-        """
-        Step.
-        w1 - new action of portfolio weights - e.g. [0.1,0.9,0.0]
-        y1 - price relative vector also called return
-            e.g. [1.0, 0.9, 1.1]
-        Numbered equations are from https://arxiv.org/abs/1706.10059
-        """
-        assert w1.shape == y1.shape, 'w1 and y1 must have the same shape'
-        assert y1[0] == 1.0, 'y1[0] must be 1'
-
+        w0 = self.w0
         p0 = self.p0
 
-        dw1 = (y1 * w1) / (np.dot(y1, w1) + eps)  # (eq7) weights evolve into
+        dw1 = (y1 * w0) / (np.dot(y1, w0) + eps)  # (eq7) weights evolve into
 
-        mu1 = self.cost * (np.abs(dw1 - w1)).sum()  # (eq16) cost to change portfolio
+        # (eq16) cost to change portfolio
+        # (excluding change in cash to avoid double counting for transaction cost)
+        c1 = self.cost * (np.abs(dw1[1:] - w1[1:])).sum()
 
-        assert mu1 < 1.0, 'Cost is larger than current holding'
-
-        p1 = p0 * (1 - mu1) * np.dot(y1, w1)  # (eq11) final portfolio value
+        p1 = p0 * (1 - c1) * np.dot(y1, w0)  # (eq11) final portfolio value
 
         p1 = p1 * (1 - self.time_cost)  # we can add a cost to holding
 
+        # can't have negative holdings in this model (no shorts)
+        p1 = np.clip(p1, 0, np.inf)
+
         rho1 = p1 / p0 - 1  # rate of returns
-        r1 = np.log((p1 + eps) / (p0 + eps))  # log rate of return
-        reward = r1 / self.steps * 1000.  # (22) average logarithmic accumulated return
+        r1 = np.log((p1 + eps) / (p0 + eps))  # (eq10) log rate of return
+        # (eq22) immediate reward is log rate of return scaled by episode length
+        reward = r1 / self.steps * 1000
+
         # remember for next step
+        self.w0 = w1
         self.p0 = p1
 
-        # if we run out of money, we're done (losing all the money)
-        done = p1 == 0
+        # if we run out of money, we're done
+        done = bool(p1 == 0)
 
+        # should only return single values, not list
         info = {
             "reward": reward,
             "log_return": r1,
@@ -155,14 +153,62 @@ class PortfolioSim(object):
             "rate_of_return": rho1,
             "weights_mean": w1.mean(),
             "weights_std": w1.std(),
-            "cost": mu1,
+            "cost": c1,
         }
+
         self.infos.append(info)
         return reward, info, done
+
+    # def _step(self, w1, y1):
+    #     """
+    #     Step.
+    #     w1 - new action of portfolio weights - e.g. [0.1,0.9,0.0]
+    #     y1 - price relative vector also called return
+    #         e.g. [1.0, 0.9, 1.1]
+    #     Numbered equations are from https://arxiv.org/abs/1706.10059
+    #     """
+    #     assert w1.shape == y1.shape, 'w1 and y1 must have the same shape'
+    #     assert y1[0] == 1.0, 'y1[0] must be 1'
+
+    #     p0 = self.p0
+
+    #     dw1 = (y1 * w1) / (np.dot(y1, w1) + eps)  # (eq7) weights evolve into
+
+    #     mu1 = self.cost * (np.abs(dw1 - w1)).sum()  # (eq16) cost to change portfolio
+
+    #     assert mu1 < 1.0, 'Cost is larger than current holding'
+
+    #     p1 = p0 * (1 - mu1) * np.dot(y1, w1)  # (eq11) final portfolio value
+
+    #     p1 = p1 * (1 - self.time_cost)  # we can add a cost to holding
+
+    #     rho1 = p1 / p0 - 1  # rate of returns
+    #     r1 = np.log((p1 + eps) / (p0 + eps))  # log rate of return
+    #     reward = r1 / self.steps * 1000.  # (22) average logarithmic accumulated return
+    #     # remember for next step
+    #     self.p0 = p1
+
+    #     # if we run out of money, we're done (losing all the money)
+    #     done = p1 == 0
+
+    #     info = {
+    #         "reward": reward,
+    #         "log_return": r1,
+    #         "portfolio_value": p1,
+    #         "return": y1.mean(),
+    #         "rate_of_return": rho1,
+    #         "weights_mean": w1.mean(),
+    #         "weights_std": w1.std(),
+    #         "cost": mu1,
+    #     }
+    #     self.infos.append(info)
+    #     return reward, info, done
 
     def reset(self):
         self.infos = []
         self.p0 = 1.0
+        self.w0 = np.zeros(len(self.asset_names) + 1)
+        self.w0[0] = 1
 
 
 class PortfolioEnv(gym.Env):
@@ -266,6 +312,8 @@ class PortfolioEnv(gym.Env):
 
         self.infos.append(info)
 
+        observation = {'obs': observation, 'weights':  self.sim.w0}
+
         return observation, reward, done1 or done2, info
 
     def _reset(self):
@@ -278,6 +326,8 @@ class PortfolioEnv(gym.Env):
         ground_truth_obs = np.concatenate((cash_ground_truth, ground_truth_obs), axis=0)
         info = {}
         info['next_obs'] = ground_truth_obs
+
+        observation = {'obs': observation, 'weights': self.sim.w0}
         return observation, info
 
     def _render(self, mode='human', close=False):
@@ -289,6 +339,7 @@ class PortfolioEnv(gym.Env):
             self.plot()
 
     def plot(self):
+        print("HERE")
         # show a plot of portfolio vs mean market performance
         df_info = pd.DataFrame(self.infos)
         df_info.index = df_info["date"]
@@ -296,6 +347,7 @@ class PortfolioEnv(gym.Env):
         sharpe_ratio = sharpe(df_info.rate_of_return)
         title = 'max_drawdown={: 2.2%} sharpe_ratio={: 2.4f}'.format(mdd, sharpe_ratio)
         df_info[["portfolio_value", "market_value"]].plot(title=title, fig=plt.gcf(), rot=30)
+        plt.show()
 
 
 class MultiActionPortfolioEnv(PortfolioEnv):

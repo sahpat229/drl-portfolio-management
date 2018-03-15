@@ -99,14 +99,18 @@ class DDPG(BaseModel):
                 print("Episode: " + str(i) + " Replay Buffer " + str(self.buffer.count()))
 
             previous_observation = self.env.reset()
+            previous_observation, previous_weights = previous_observation[0]['obs'], previous_observation[0]['weights']
+
             if self.obs_normalizer:
                 previous_observation = self.obs_normalizer(previous_observation)
 
             ep_reward = 0
             ep_ave_max_q = 0
+            ep_ave_min_q = 0
             # keeps sampling until done
             for j in range(self.config['max step']):
-                action = self.actor.predict(np.expand_dims(previous_observation, axis=0)).squeeze(
+                action = self.actor.predict(inputs=np.expand_dims(previous_observation, axis=0),
+                                            portfolio_inputs=np.expand_dims(previous_weights, axis=0)).squeeze(
                     axis=0) + self.actor_noise()
 
                 if self.action_processor:
@@ -114,19 +118,27 @@ class DDPG(BaseModel):
                 else:
                     action_take = action
                 # step forward
+
+                #print("ACTION:", action_take)
+                action_take = np.clip(action, 0, 1)
+                action_take /= action_take.sum()
                 observation, reward, done, _ = self.env.step(action_take)
+                observation, weights = observation['obs'], observation['weights']
 
                 if self.obs_normalizer:
                     observation = self.obs_normalizer(observation)
 
                 # add to buffer
-                self.buffer.add(previous_observation, action, reward, done, observation)
+                self.buffer.add([previous_observation, previous_weights], action_take, reward, done, [observation, weights])
 
                 if self.buffer.size() >= batch_size:
                     # batch update
-                    s_batch, a_batch, r_batch, t_batch, s2_batch = self.buffer.sample_batch(batch_size)
+                    s_batch, sw_batch, a_batch, r_batch, t_batch, s2_batch, s2w_batch = self.buffer.sample_batch(batch_size)
                     # Calculate targets
-                    target_q = self.critic.predict_target(s2_batch, self.actor.predict_target(s2_batch))
+                    target_q = self.critic.predict_target(inputs=s2_batch, 
+                                                          action=self.actor.predict_target(inputs=s2_batch,
+                                                                                           portfolio_inputs=s2w_batch),
+                                                          portfolio_inputs=s2w_batch)
 
                     y_i = []
                     for k in range(batch_size):
@@ -136,15 +148,23 @@ class DDPG(BaseModel):
                             y_i.append(r_batch[k] + gamma * target_q[k])
 
                     # Update the critic given the targets
-                    predicted_q_value, _ = self.critic.train(
-                        s_batch, a_batch, np.reshape(y_i, (batch_size, 1)))
+                    predicted_q_value, _ = self.critic.train(inputs=s_batch, 
+                                                             action=a_batch, 
+                                                             predicted_q_value=np.reshape(y_i, (batch_size, 1)),
+                                                             portfolio_inputs=sw_batch)
 
                     ep_ave_max_q += np.amax(predicted_q_value)
+                    ep_ave_min_q += np.amin(predicted_q_value)
 
                     # Update the actor policy using the sampled gradient
-                    a_outs = self.actor.predict(s_batch)
-                    grads = self.critic.action_gradients(s_batch, a_outs)
-                    self.actor.train(s_batch, grads[0])
+                    a_outs = self.actor.predict(inputs=s_batch,
+                                                portfolio_inputs=sw_batch)
+                    grads = self.critic.action_gradients(inputs=s_batch, 
+                                                         actions=a_outs,
+                                                         portfolio_inputs=sw_batch)
+                    self.actor.train(inputs=s_batch, 
+                                     a_gradient=grads[0],
+                                     portfolio_inputs=sw_batch)
 
                     # Update target networks
                     self.actor.update_target_network()
@@ -162,7 +182,10 @@ class DDPG(BaseModel):
                     writer.add_summary(summary_str, i)
                     writer.flush()
 
-                    print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}'.format(i, ep_reward, (ep_ave_max_q / float(j))))
+                    if (i % 10) == 0:
+                        self.env.render()
+                    print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}, Qmin{:.4f}'.format(i, 
+                        ep_reward, (ep_ave_max_q / float(j)), (ep_ave_min_q / float(j))))
                     break
 
         self.save_model(verbose=True)

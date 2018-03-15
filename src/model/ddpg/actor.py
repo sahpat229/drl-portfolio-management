@@ -42,12 +42,12 @@ class ActorNetwork(object):
         self.batch_size = batch_size
 
         # Actor Network
-        self.inputs, self.out, self.scaled_out = self.create_actor_network()
+        self.inputs, self.out, self.scaled_out, self.portfolio_inputs = self.create_actor_network()
 
         self.network_params = tf.trainable_variables()
 
         # Target Network
-        self.target_inputs, self.target_out, self.target_scaled_out = self.create_actor_network()
+        self.target_inputs, self.target_out, self.target_scaled_out, self.target_portfolio_inputs = self.create_actor_network()
 
         self.target_network_params = tf.trainable_variables()[
                                      len(self.network_params):]
