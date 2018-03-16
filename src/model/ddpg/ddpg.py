@@ -3,13 +3,17 @@ The deep deterministic policy gradient model. Contains main training loop and de
 """
 from __future__ import print_function
 
+import matplotlib
+matplotlib.use('Agg')
+
 import os
 import traceback
 import json
+import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
-from .replay_buffer import ReplayBuffer
+from .replay_buffer import ReplayBuffer, ReplayBufferMultiple
 from ..base_model import BaseModel
 
 
@@ -91,87 +95,115 @@ class DDPG(BaseModel):
         num_episode = self.config['episode']
         batch_size = self.config['batch size']
         gamma = self.config['gamma']
-        self.buffer = ReplayBuffer(self.config['buffer size'])
+        self.buffer = ReplayBufferMultiple(self.config['buffer size'])
 
         # main training loop
         for i in range(num_episode):
             if verbose and debug:
                 print("Episode: " + str(i) + " Replay Buffer " + str(self.buffer.count()))
 
-            previous_observation = self.env.reset()
-            previous_observation, previous_weights = previous_observation[0]['obs'], previous_observation[0]['weights']
+            observation_1 = self.env.reset()
+            observation_1, weights_1 = observation_1[0]['obs'], observation_1[0]['weights']
 
             if self.obs_normalizer:
-                previous_observation = self.obs_normalizer(previous_observation)
+                observation_1 = self.obs_normalizer(observation_1)
+
+
+            action_1 = self.actor.predict(inputs=np.expand_dims(observation_1, axis=0),
+                                          portfolio_inputs=np.expand_dims(weights_1, axis=0)).squeeze(
+                                          axis=0) + self.actor_noise()
+            action_1 = np.clip(action_1, 0, 1)
+            if action_1.sum() == 0:
+                action_1 = np.ones(observation_1.shape[0])/observation_1.shape[0]
+            action_1 /= action_1.sum()
+
+            observation_2, reward_1, done, _ = self.env.step(action_1)
+            observation_2, weights_2 = observation_2['obs'], observation_2['weights']
+
+            if self.obs_normalizer:
+                observation_2 = self.obs_normalizer(observation_2)
 
             ep_reward = 0
             ep_ave_max_q = 0
             ep_ave_min_q = 0
             # keeps sampling until done
             for j in range(self.config['max step']):
-                action = self.actor.predict(inputs=np.expand_dims(previous_observation, axis=0),
-                                            portfolio_inputs=np.expand_dims(previous_weights, axis=0)).squeeze(
+                action_2 = self.actor.predict(inputs=np.expand_dims(observation_2, axis=0),
+                                              portfolio_inputs=np.expand_dims(weights_2, axis=0)).squeeze(
                     axis=0) + self.actor_noise()
 
                 if self.action_processor:
-                    action_take = self.action_processor(action)
+                    action_2 = self.action_processor(action_2)
                 else:
-                    action_take = action
+                    action_2 = action_2
                 # step forward
 
                 #print("ACTION:", action_take)
-                action_take = np.clip(action, 0, 1)
-                action_take /= action_take.sum()
-                observation, reward, done, _ = self.env.step(action_take)
-                observation, weights = observation['obs'], observation['weights']
+                action_2 = np.clip(action_2, 0, 1)
+                if action_2.sum() == 0:
+                    action_2 = np.ones(observation_1.shape[0])/observation_1.shape[0]
+                action_2 /= action_2.sum()
+                observation_3, reward_2, done, _ = self.env.step(action_2)
+                observation_3, weights_3 = observation_3['obs'], observation_3['weights']
 
                 if self.obs_normalizer:
-                    observation = self.obs_normalizer(observation)
+                    observation_3 = self.obs_normalizer(observation_3)
 
                 # add to buffer
-                self.buffer.add([previous_observation, previous_weights], action_take, reward, done, [observation, weights])
+                self.buffer.add([observation_1, weights_1], action_1, reward_1, 
+                                [observation_2, weights_2], action_2, reward_2,
+                                done,
+                                [observation_3, weights_3])
 
                 if self.buffer.size() >= batch_size:
                     # batch update
-                    s_batch, sw_batch, a_batch, r_batch, t_batch, s2_batch, s2w_batch = self.buffer.sample_batch(batch_size)
+                    s1_batch, s1w_batch, a1_batch, r1_batch, \
+                        s2_batch, s2w_batch, a2_batch, r2_batch, \
+                        t_batch, s3_batch, s3w_batch = self.buffer.sample_batch(batch_size)
+
                     # Calculate targets
-                    target_q = self.critic.predict_target(inputs=s2_batch, 
-                                                          action=self.actor.predict_target(inputs=s2_batch,
-                                                                                           portfolio_inputs=s2w_batch),
-                                                          portfolio_inputs=s2w_batch)
+                    target_q = self.critic.predict_target(inputs=s3_batch, 
+                                                          action=self.actor.predict_target(inputs=s3_batch,
+                                                                                           portfolio_inputs=s3w_batch),
+                                                          portfolio_inputs=s3w_batch)
 
                     y_i = []
                     for k in range(batch_size):
                         if t_batch[k]:
-                            y_i.append(r_batch[k])
+                            y_i.append(r1_batch[k] + gamma * r2_batch[k])
                         else:
-                            y_i.append(r_batch[k] + gamma * target_q[k])
+                            y_i.append(r1_batch[k] + gamma * r2_batch[k] + (gamma**2)*target_q[k])
 
                     # Update the critic given the targets
-                    predicted_q_value, _ = self.critic.train(inputs=s_batch, 
-                                                             action=a_batch, 
+                    predicted_q_value, _ = self.critic.train(inputs=s1_batch, 
+                                                             action=a1_batch, 
                                                              predicted_q_value=np.reshape(y_i, (batch_size, 1)),
-                                                             portfolio_inputs=sw_batch)
+                                                             portfolio_inputs=s1w_batch)
 
                     ep_ave_max_q += np.amax(predicted_q_value)
                     ep_ave_min_q += np.amin(predicted_q_value)
 
                     # Update the actor policy using the sampled gradient
-                    a_outs = self.actor.predict(inputs=s_batch,
-                                                portfolio_inputs=sw_batch)
-                    grads = self.critic.action_gradients(inputs=s_batch, 
+                    a_outs = self.actor.predict(inputs=s1_batch,
+                                                portfolio_inputs=s1w_batch)
+                    grads = self.critic.action_gradients(inputs=s1_batch, 
                                                          actions=a_outs,
-                                                         portfolio_inputs=sw_batch)
-                    self.actor.train(inputs=s_batch, 
+                                                         portfolio_inputs=s1w_batch)
+                    self.actor.train(inputs=s1_batch, 
                                      a_gradient=grads[0],
-                                     portfolio_inputs=sw_batch)
+                                     portfolio_inputs=s1w_batch)
 
                     # Update target networks
                     self.actor.update_target_network()
                     self.critic.update_target_network()
 
-                ep_reward += reward
-                previous_observation = observation
+                ep_reward += reward_1
+                observation_1 = observation_2
+                weights_1 = weights_2
+                reward_1 = reward_2
+                action_1 = action_2
+                observation_2 = observation_3
+                weights_2 = weights_3
 
                 if done or j == self.config['max step'] - 1:
                     summary_str = self.sess.run(self.summary_ops, feed_dict={
@@ -184,6 +216,8 @@ class DDPG(BaseModel):
 
                     if (i % 10) == 0:
                         self.env.render()
+                        plt.savefig(os.path.join('./infer/', str(i)+".png"))
+                        plt.close()
                     print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}, Qmin{:.4f}'.format(i, 
                         ep_reward, (ep_ave_max_q / float(j)), (ep_ave_min_q / float(j))))
                     break

@@ -346,13 +346,15 @@ if __name__ == '__main__':
 
     # setup environment
 
-    # dc = utils.datacontainer.TestContainer(shape='ar', num_assets=4, num_samples=2000, alpha=0.9, kappa=3)
+    #dc = utils.datacontainer.TestContainer(shape='ar', num_assets=4, num_samples=2000, alpha=0.9, kappa=3)
+    # dc = utils.datacontainer.BitcoinTestContainer(csv_file_name='./datasets/output.csv')
     # target_history = dc.train_close
-    # opens = np.concatenate((np.ones((4, 1)), target_history[:, :-1]), axis=1)
-    # filler = np.zeros((4, target_history.shape[1]))
+    # num_assets = target_history.shape[0]
+    # opens = np.concatenate((np.ones((num_assets, 1)), target_history[:, :-1]), axis=1)
+    # filler = np.zeros((num_assets, target_history.shape[1]))
     # target_history = np.stack((opens, filler, filler, target_history), axis=-1)
     # print(target_history.shape)
-    # target_stocks = ['AAPL', 'GOOG', 'FB', 'MSFT']
+    # target_stocks = ['BTC']
     # nb_classes = len(target_stocks) + 1
 
     env = PortfolioEnv(target_history, target_stocks, steps=1000, window_length=window_length)

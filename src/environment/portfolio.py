@@ -5,6 +5,8 @@ from __future__ import print_function
 
 from pprint import pprint
 
+import matplotlib
+matplotlib.use('Agg')
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -154,6 +156,7 @@ class PortfolioSim(object):
             "weights_mean": w1.mean(),
             "weights_std": w1.std(),
             "cost": c1,
+            "weights": w1
         }
 
         self.infos.append(info)
@@ -305,6 +308,7 @@ class PortfolioEnv(gym.Env):
 
         # calculate return for buy and hold a bit of each asset
         info['market_value'] = np.cumprod([inf["return"] for inf in self.infos + [info]])[-1]
+        info['open_prices'] = open_price_vector
         # add dates
         info['date'] = index_to_date(self.start_idx + self.src.idx + self.src.step)
         info['steps'] = self.src.step
@@ -341,14 +345,25 @@ class PortfolioEnv(gym.Env):
     def plot(self):
         print("HERE")
         # show a plot of portfolio vs mean market performance
+        fig, axes = plt.subplots(nrows=3, ncols=1)
         df_info = pd.DataFrame(self.infos)
         df_info.index = df_info["date"]
         mdd = max_drawdown(df_info.rate_of_return + 1)
         sharpe_ratio = sharpe(df_info.rate_of_return)
         title = 'max_drawdown={: 2.2%} sharpe_ratio={: 2.4f}'.format(mdd, sharpe_ratio)
-        df_info[["portfolio_value", "market_value"]].plot(title=title, fig=plt.gcf(), rot=30)
-        plt.show()
+        df_info[["portfolio_value", "market_value"]].plot(title=title, ax=axes[0], rot=30)
 
+        prices = [info["open_prices"] for info in self.infos]
+        prices = np.array(prices)
+        axes[1].set_ylabel('Prices')
+        for ind in range(prices.shape[1]):
+            axes[1].plot(prices[:, ind])
+
+        allocations = [info["weights"] for info in self.infos]
+        allocations = np.array(allocations)
+        axes[2].set_ylabel('Action')
+        for ind in range(allocations.shape[1]):
+            axes[2].plot(allocations[:, ind])
 
 class MultiActionPortfolioEnv(PortfolioEnv):
     def __init__(self,

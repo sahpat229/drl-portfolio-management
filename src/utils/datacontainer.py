@@ -440,8 +440,8 @@ class BitcoinTestContainer(Container):
             times.append(int(line['time']))
 
         closes = np.array([self.data['close']])
-        closes = np.concatenate((np.ones((1, closes.shape[1])), closes),
-                                axis=0)
+        # closes = np.concatenate((np.ones((1, closes.shape[1])), closes),
+        #                         axis=0)
         conf = {
             'returns': True,
             'lagged_returns_1': True,
