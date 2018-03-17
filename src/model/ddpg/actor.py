@@ -42,12 +42,13 @@ class ActorNetwork(object):
         self.batch_size = batch_size
 
         # Actor Network
-        self.inputs, self.out, self.scaled_out, self.portfolio_inputs = self.create_actor_network()
+        self.inputs, self.out, self.scaled_out, self.portfolio_inputs, self.loss = self.create_actor_network()
 
         self.network_params = tf.trainable_variables()
 
         # Target Network
-        self.target_inputs, self.target_out, self.target_scaled_out, self.target_portfolio_inputs = self.create_actor_network()
+        self.target_inputs, self.target_out, self.target_scaled_out, \
+            self.target_portfolio_inputs, self.target_loss = self.create_actor_network()
 
         self.target_network_params = tf.trainable_variables()[
                                      len(self.network_params):]
@@ -62,14 +63,19 @@ class ActorNetwork(object):
         # This gradient will be provided by the critic network
         self.action_gradient = tf.placeholder(tf.float32, [None] + self.a_dim)
 
+        optimizer = tf.train.AdamOptimizer(self.learning_rate)
+
         # Combine the gradients here
         self.unnormalized_actor_gradients = tf.gradients(
             self.scaled_out, self.network_params, -self.action_gradient)
         self.actor_gradients = list(map(lambda x: tf.div(x, self.batch_size), self.unnormalized_actor_gradients))
 
+        self.loss_gradients = optimizer.compute_gradients(self.loss, self.network_params)
+
         # Optimization Op
-        self.optimize = tf.train.AdamOptimizer(self.learning_rate). \
+        self.optimize = optimizer. \
             apply_gradients(zip(self.actor_gradients, self.network_params))
+        # self.optimize_comm = optimizer.apply_gradients(self.loss_gradients)
 
         self.num_trainable_vars = len(self.network_params) + len(self.target_network_params)
 

@@ -118,18 +118,13 @@ class PortfolioSim(object):
         self.steps = steps
 
     def _step(self, w1, y1):
-        w0 = self.w0
-        p0 = self.p0
+        w0 = self.w0 #old_weights'
+        p0 = self.p0 #p'
 
-        dw1 = (y1 * w0) / (np.dot(y1, w0) + eps)  # (eq7) weights evolve into
+        c1 = self.cost * (np.abs(w0[1:] - w1[1:])).sum()
+        p1 = p0 * (1 - c1) * np.dot(y1, w1) # p_(t+1)''
 
-        # (eq16) cost to change portfolio
-        # (excluding change in cash to avoid double counting for transaction cost)
-        c1 = self.cost * (np.abs(dw1[1:] - w1[1:])).sum()
-
-        p1 = p0 * (1 - c1) * np.dot(y1, w0)  # (eq11) final portfolio value
-
-        p1 = p1 * (1 - self.time_cost)  # we can add a cost to holding
+        dw1 = (y1 * w1) / (np.dot(y1, w1) + eps)  # (eq7) weights evolve into
 
         # can't have negative holdings in this model (no shorts)
         p1 = np.clip(p1, 0, np.inf)
@@ -140,7 +135,7 @@ class PortfolioSim(object):
         reward = r1 / self.steps * 1000
 
         # remember for next step
-        self.w0 = w1
+        self.w0 = dw1
         self.p0 = p1
 
         # if we run out of money, we're done
@@ -151,16 +146,63 @@ class PortfolioSim(object):
             "reward": reward,
             "log_return": r1,
             "portfolio_value": p1,
-            "return": y1.mean(),
+            "return": y1[1:].mean(),
             "rate_of_return": rho1,
             "weights_mean": w1.mean(),
             "weights_std": w1.std(),
             "cost": c1,
-            "weights": w1
+            "weights": w1,
+            "evolved_weights": dw1
         }
 
         self.infos.append(info)
         return reward, info, done
+
+    # def _step(self, w1, y1):
+    #     w0 = self.w0
+    #     p0 = self.p0
+
+    #     dw1 = (y1 * w0) / (np.dot(y1, w0) + eps)  # (eq7) weights evolve into
+
+    #     # (eq16) cost to change portfolio
+    #     # (excluding change in cash to avoid double counting for transaction cost)
+    #     c1 = self.cost * (np.abs(dw1[1:] - w1[1:])).sum()
+
+    #     p1 = p0 * (1 - c1) * np.dot(y1, w0)  # (eq11) final portfolio value
+
+    #     p1 = p1 * (1 - self.time_cost)  # we can add a cost to holding
+
+    #     # can't have negative holdings in this model (no shorts)
+    #     p1 = np.clip(p1, 0, np.inf)
+
+    #     rho1 = p1 / p0 - 1  # rate of returns
+    #     r1 = np.log((p1 + eps) / (p0 + eps))  # (eq10) log rate of return
+    #     # (eq22) immediate reward is log rate of return scaled by episode length
+    #     reward = r1 / self.steps * 1000
+
+    #     # remember for next step
+    #     self.w0 = w1
+    #     self.p0 = p1
+
+    #     # if we run out of money, we're done
+    #     done = bool(p1 == 0)
+
+    #     # should only return single values, not list
+    #     info = {
+    #         "reward": reward,
+    #         "log_return": r1,
+    #         "portfolio_value": p1,
+    #         "return": y1.mean(),
+    #         "rate_of_return": rho1,
+    #         "weights_mean": w1.mean(),
+    #         "weights_std": w1.std(),
+    #         "cost": c1,
+    #         "weights": w1,
+    #         "evolved_weights": dw1
+    #     }
+
+    #     self.infos.append(info)
+    #     return reward, info, done
 
     # def _step(self, w1, y1):
     #     """
@@ -249,6 +291,7 @@ class PortfolioEnv(gym.Env):
         self.window_length = window_length
         self.num_stocks = history.shape[0]
         self.start_idx = start_idx
+        self.steps = steps
 
         self.src = DataGenerator(history, abbreviation, steps=steps, window_length=window_length, start_idx=start_idx,
                                  start_date=sample_start_date)
@@ -343,7 +386,7 @@ class PortfolioEnv(gym.Env):
             self.plot()
 
     def plot(self):
-        print("HERE")
+        #print("HERE")
         # show a plot of portfolio vs mean market performance
         fig, axes = plt.subplots(nrows=3, ncols=1)
         df_info = pd.DataFrame(self.infos)
@@ -364,6 +407,12 @@ class PortfolioEnv(gym.Env):
         axes[2].set_ylabel('Action')
         for ind in range(allocations.shape[1]):
             axes[2].plot(allocations[:, ind])
+
+
+    def plot_costs(self):
+        costs = [info["cost"] for info in self.infos]
+        costs = np.array(costs)
+        plt.plot(costs)
 
 class MultiActionPortfolioEnv(PortfolioEnv):
     def __init__(self,

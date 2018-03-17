@@ -22,28 +22,52 @@ import utils.datacontainer
 DEBUG = True
 
 
-def get_model_path(window_length, predictor_type, use_batch_norm):
+def get_model_path(window_length, predictor_type, use_batch_norm, learning_steps=0, 
+                   auxiliary_commission=False, auxiliary_prediction=False):
     if use_batch_norm:
         batch_norm_str = 'batch_norm'
     else:
         batch_norm_str = 'no_batch_norm'
-    return 'weights/stock/{}/window_{}/{}/checkpoint.ckpt'.format(predictor_type, window_length, batch_norm_str)
+
+    learning_steps_str = 'learning_steps_'+str(learning_steps)
+    auxiliary_str = 'auxil_commission_{}_auxil_prediction_{}'.format(str(auxiliary_commission), str(auxiliary_prediction))
+
+    #return 'weights/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
+
+    return 'weights/stock/{}/window_{}/{}/{}/{}/checkpoint.ckpt'.format(predictor_type, window_length, batch_norm_str,
+                                                                        learning_steps_str, auxiliary_str)
 
 
-def get_result_path(window_length, predictor_type, use_batch_norm):
+def get_result_path(window_length, predictor_type, use_batch_norm, learning_steps=0,
+                    auxiliary_commission=False, auxiliary_prediction=False):
     if use_batch_norm:
         batch_norm_str = 'batch_norm'
     else:
         batch_norm_str = 'no_batch_norm'
-    return 'results/stock/{}/window_{}/{}/'.format(predictor_type, window_length, batch_norm_str)
+
+    learning_steps_str = 'learning_steps_'+str(learning_steps)
+    auxiliary_str = 'auxil_commission_{}_auxil_prediction_{}'.format(str(auxiliary_commission), str(auxiliary_prediction))
+
+    #return 'results/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
+
+    return 'results/stock/{}/window_{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
+                                                         learning_steps_str, auxiliary_str)
 
 
-def get_variable_scope(window_length, predictor_type, use_batch_norm):
+def get_variable_scope(window_length, predictor_type, use_batch_norm, learning_steps=0,
+                       auxiliary_commission=False, auxiliary_prediction=False):
     if use_batch_norm:
         batch_norm_str = 'batch_norm'
     else:
         batch_norm_str = 'no_batch_norm'
-    return '{}_window_{}_{}'.format(predictor_type, window_length, batch_norm_str)
+
+    learning_steps_str = 'learning_steps_'+str(learning_steps)
+    auxiliary_str = 'auxil_commission_{}_auxil_prediction_{}'.format(str(auxiliary_commission), str(auxiliary_prediction))
+
+    #return '{}_window_{}_{}'.format(predictor_type, window_length, batch_norm_str)
+
+    return '{}_window_{}_{}_{}_{}'.format(predictor_type, window_length, batch_norm_str,
+                                          learning_steps_str, auxiliary_str)
 
 
 def stock_predictor(inputs, predictor_type, use_batch_norm, use_previous, previous_input):
@@ -93,7 +117,7 @@ def stock_predictor(inputs, predictor_type, use_batch_norm, use_previous, previo
 
 class StockActor(ActorNetwork):
     def __init__(self, sess, state_dim, action_dim, action_bound, learning_rate, tau, batch_size,
-                 predictor_type, use_batch_norm, use_previous=False):
+                 predictor_type, use_batch_norm, use_previous=False, auxiliary_prediction=False):
         self.predictor_type = predictor_type
         self.use_batch_norm = use_batch_norm
         self.use_previous = use_previous
@@ -131,18 +155,23 @@ class StockActor(ActorNetwork):
         out = tflearn.fully_connected(net, self.a_dim[0], activation='softmax', weights_init=w_init)
         # Scale output to -action_bound to action_bound
         scaled_out = tf.multiply(out, self.action_bound)
-        return inputs, out, scaled_out, portfolio_inputs
+
+        loss = None
+        if self.use_previous:
+            loss = tf.reduce_mean(tf.reduce_sum(tf.square(scaled_out - portfolio_inputs), axis=-1))
+
+        return inputs, out, scaled_out, portfolio_inputs, loss
 
     def train(self, inputs, a_gradient, portfolio_inputs=None):
         window_length = self.s_dim[1]
         inputs = inputs[:, :, -window_length:, :]
         if not self.use_previous:
-            self.sess.run(self.optimize, feed_dict={
+            self.sess.run([self.optimize], feed_dict={
                 self.inputs: inputs,
                 self.action_gradient: a_gradient
             })
         else:
-            self.sess.run(self.optimize, feed_dict={
+            self.sess.run([self.optimize], feed_dict={
                 self.inputs: inputs,
                 self.portfolio_inputs: portfolio_inputs,
                 self.action_gradient: a_gradient
@@ -175,6 +204,7 @@ class StockActor(ActorNetwork):
                 self.target_inputs: inputs,
                 self.target_portfolio_inputs: portfolio_inputs
             })
+
 
 class StockCritic(CriticNetwork):
     def __init__(self, sess, state_dim, action_dim, learning_rate, tau, num_actor_vars,
@@ -321,6 +351,9 @@ if __name__ == '__main__':
     parser.add_argument('--predictor_type', '-p', help='cnn or lstm predictor', required=True)
     parser.add_argument('--window_length', '-w', help='observation window length', required=True)
     parser.add_argument('--batch_norm', '-b', help='whether to use batch normalization', required=True)
+    parser.add_argument('--learning_steps', '-l', help='number of learning steps for DDPG', required=True)
+    parser.add_argument('--auxil_commission', '-ac', help='whether to use auxiliary commission', default=False)
+    parser.add_argument('--auxil_prediction', '-ap', help='whether to use auxiliary prediction', default=False)
 
     args = vars(parser.parse_args())
 
@@ -344,6 +377,13 @@ if __name__ == '__main__':
         target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
     print(target_history.shape)
 
+    testing_stocks = abbreviation
+    test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
+                                   history.shape[2]))
+    for i, stock in enumerate(testing_stocks):
+        test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
+
+
     # setup environment
 
     #dc = utils.datacontainer.TestContainer(shape='ar', num_assets=4, num_samples=2000, alpha=0.9, kappa=3)
@@ -358,6 +398,7 @@ if __name__ == '__main__':
     # nb_classes = len(target_stocks) + 1
 
     env = PortfolioEnv(target_history, target_stocks, steps=1000, window_length=window_length)
+    test_env = PortfolioEnv(test_history, testing_stocks, steps=test_history.shape[1]-10, window_length=window_length)
 
     action_dim = [nb_classes]
     state_dim = [nb_classes, window_length]
@@ -372,11 +413,24 @@ if __name__ == '__main__':
         use_batch_norm = False
     else:
         raise ValueError('Unknown batch norm argument')
-    actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_dim))
-    model_save_path = get_model_path(window_length, predictor_type, use_batch_norm)
-    summary_path = get_result_path(window_length, predictor_type, use_batch_norm)
 
-    variable_scope = get_variable_scope(window_length, predictor_type, use_batch_norm)
+    learning_steps = int(args['learning_steps'])
+    if args['auxil_commission'] == 'True':
+        auxil_commission = True
+    else:
+        auxil_commission = False
+    if args['auxil_prediction'] == 'True':
+        auxil_prediction = True
+    else:
+        auxil_prediction = False
+
+    actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_dim))
+    model_save_path = get_model_path(window_length, predictor_type, use_batch_norm, 
+                                     learning_steps, auxil_commission, auxil_prediction)
+    summary_path = get_result_path(window_length, predictor_type, use_batch_norm,
+                                   learning_steps, auxil_commission, auxil_prediction)
+    variable_scope = get_variable_scope(window_length, predictor_type, use_batch_norm,
+                                        learning_steps, auxil_commission, auxil_prediction)
 
     with tf.variable_scope(variable_scope):
         sess = tf.Session()
@@ -387,6 +441,6 @@ if __name__ == '__main__':
                              predictor_type=predictor_type, use_batch_norm=use_batch_norm, use_previous=True)
         ddpg_model = DDPG(env, sess, actor, critic, actor_noise, obs_normalizer=obs_normalizer,
                           config_file='config/stock.json', model_save_path=model_save_path,
-                          summary_path=summary_path)
+                          summary_path=summary_path, test_env=test_env, learning_steps=learning_steps)
         ddpg_model.initialize(load_weights=False)
         ddpg_model.train()
