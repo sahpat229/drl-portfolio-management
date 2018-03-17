@@ -524,7 +524,7 @@ class DDPG(BaseModel):
             obs, ws = episode_rollout[-1]
             action = self.actor.predict(inputs=np.expand_dims(obs, axis=0),
                                         portfolio_inputs=np.expand_dims(ws, axis=0)).squeeze(
-                                        axis=0) + self.actor_noise()
+                                        axis=0)
             action = np.clip(action, 0, 1)
             if action.sum() == 0:
                 action = np.ones(obs.shape[0])/obs.shape[0]
@@ -542,7 +542,7 @@ class DDPG(BaseModel):
         for j in range(env.steps-self.learning_steps):
             action = self.actor.predict(inputs=np.expand_dims(episode_rollout[-1][0], axis=0),
                                         portfolio_inputs=np.expand_dims(episode_rollout[-1][1], axis=0)).squeeze(
-                axis=0) + self.actor_noise()
+                                        axis=0)
 
             if self.action_processor:
                 action = self.action_processor(action)
