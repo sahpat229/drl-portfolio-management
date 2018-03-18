@@ -33,15 +33,12 @@ def build_summaries():
 
 class DDPG(BaseModel):
     def __init__(self, env, sess, actor, critic, actor_noise, obs_normalizer=None, action_processor=None,
-                 config_file='config/default.json',
+                 gamma=0.5, training_episodes=600, max_rollout_steps=1000, buffer_size=100000, seed=1337, batch_size=64,
                  model_save_path='weights/ddpg/ddpg.ckpt', summary_path='results/ddpg/', infer_path='infer/',
                  test_env=None, learning_steps=1):
-        with open(config_file) as f:
-            self.config = json.load(f)
-        assert self.config != None, "Can't load config file"
-        np.random.seed(self.config['seed'])
+        np.random.seed(seed)
         if env:
-            env.seed(self.config['seed'])
+            env.seed(seed)
         self.model_save_path = model_save_path
         #self.model_save_path = 'weights/stock/cnn/window_3/batch_norm/checkpoint.ckpt'
         self.summary_path = summary_path
@@ -54,6 +51,12 @@ class DDPG(BaseModel):
         self.actor_noise = actor_noise
         self.obs_normalizer = obs_normalizer
         self.action_processor = action_processor
+        self.gamma = gamma
+        self.training_episodes = training_episodes
+        self.max_rollout_steps = max_rollout_steps
+        self.buffer_size = buffer_size
+        self.seed = seed
+        self.batch_size = batch_size
         self.test_env = test_env
         self.learning_steps = learning_steps
         self.start_episode = 0
@@ -125,11 +128,11 @@ class DDPG(BaseModel):
         self.actor.update_target_network()
         self.critic.update_target_network()
 
-        np.random.seed(self.config['seed'])
-        num_episode = self.config['episode']
-        batch_size = self.config['batch size']
-        gamma = self.config['gamma']
-        self.buffer = ReplayBufferRollout(self.config['buffer size'])
+        np.random.seed(self.seed)
+        num_episode = self.training_episodes
+        batch_size = self.batch_size
+        gamma = self.gamma
+        self.buffer = ReplayBufferRollout(self.buffer_size)
 
         # main training loop
         for i in range(self.start_episode, num_episode):
@@ -155,7 +158,7 @@ class DDPG(BaseModel):
                 if action.sum() == 0:
                     action = np.ones(obs.shape[0])/obs.shape[0]
                 action /= action.sum()
-                new_obs, reward, done, _ = self.env.step(action)
+                new_obs, reward, done, info = self.env.step(action)
                 new_obs, new_ws = new_obs['obs'], new_obs['weights']
 
                 if self.obs_normalizer:
@@ -163,13 +166,14 @@ class DDPG(BaseModel):
                 episode_rollout.append(action)
                 episode_rollout.append(reward)
                 episode_rollout.append(done)
+                episode_rollout.append(info['next_y1'])
                 episode_rollout.append([new_obs, new_ws])
 
             ep_reward = 0
             ep_ave_max_q = 0
             ep_ave_min_q = 0
             # keeps sampling until done
-            for j in range(self.config['max step']):
+            for j in range(self.max_rollout_steps):
                 #print(j)
                 action = self.actor.predict(inputs=np.expand_dims(episode_rollout[-1][0], axis=0),
                                             portfolio_inputs=np.expand_dims(episode_rollout[-1][1], axis=0)).squeeze(
@@ -185,7 +189,7 @@ class DDPG(BaseModel):
                     action = np.ones(episode_rollout[-1][0].shape[0])/episode_rollout[-1][0].shape[0]
                 action /= action.sum()
 
-                obs, reward, done, _ = self.env.step(action)
+                obs, reward, done, info = self.env.step(action)
                 obs, ws = obs['obs'], obs['weights']
 
                 if self.obs_normalizer:
@@ -194,6 +198,7 @@ class DDPG(BaseModel):
                 episode_rollout.append(action)
                 episode_rollout.append(reward)
                 episode_rollout.append(done)
+                episode_rollout.append(info['next_y1'])
                 episode_rollout.append([obs, ws])
 
                 # add to buffer
@@ -202,7 +207,7 @@ class DDPG(BaseModel):
                 if self.buffer.size() >= batch_size:
                     # batch update
 
-                    s1_batch, s1w_batch, a1_batch, rs_batch, \
+                    s1_batch, s1w_batch, a1_batch, s1y_batch, rs_batch, \
                         t_batch, sf_batch, sfw_batch = self.buffer.sample_batch(batch_size)
 
                     # Calculate targets
@@ -239,16 +244,17 @@ class DDPG(BaseModel):
                                                          portfolio_inputs=s1w_batch)
                     self.actor.train(inputs=s1_batch, 
                                      a_gradient=grads[0],
-                                     portfolio_inputs=s1w_batch)
+                                     portfolio_inputs=s1w_batch,
+                                     future_y_inputs=s1y_batch)
 
                     # Update target networks
                     self.actor.update_target_network()
                     self.critic.update_target_network()
 
                 ep_reward += reward
-                [episode_rollout.popleft() for _ in range(4)]
+                [episode_rollout.popleft() for _ in range(5)]
 
-                if done or j == self.config['max step'] - 1:
+                if done or j == self.max_rollout_steps - 1:
                     summary_str = self.sess.run(self.summary_ops, feed_dict={
                         self.summary_vars[0]: ep_reward,
                         self.summary_vars[1]: ep_ave_max_q / float(j)

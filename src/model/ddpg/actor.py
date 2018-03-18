@@ -42,13 +42,14 @@ class ActorNetwork(object):
         self.batch_size = batch_size
 
         # Actor Network
-        self.inputs, self.out, self.scaled_out, self.portfolio_inputs, self.loss = self.create_actor_network()
+        self.inputs, self.out, self.scaled_out, self.portfolio_inputs, \
+            self.loss, self.future_y_inputs = self.create_actor_network(False)
 
         self.network_params = tf.trainable_variables()
 
         # Target Network
         self.target_inputs, self.target_out, self.target_scaled_out, \
-            self.target_portfolio_inputs, self.target_loss = self.create_actor_network()
+            self.target_portfolio_inputs, self.target_loss, self.target_future_y_inputs = self.create_actor_network(True)
 
         self.target_network_params = tf.trainable_variables()[
                                      len(self.network_params):]
@@ -65,18 +66,21 @@ class ActorNetwork(object):
 
         optimizer = tf.train.AdamOptimizer(self.learning_rate)
 
+        actor_grad_params = [v for v in self.network_params if "auxilFalse" not in v.name]
         # Combine the gradients here
         self.unnormalized_actor_gradients = tf.gradients(
-            self.scaled_out, self.network_params, -self.action_gradient)
+            self.scaled_out, actor_grad_params, -self.action_gradient)
+
         self.actor_gradients = list(map(lambda x: tf.div(x, self.batch_size), self.unnormalized_actor_gradients))
 
-        if self.use_previous and self.auxiliary_prediction:
-            self.loss_gradients = optimizer.compute_gradients(self.loss, self.network_params)
-
         # Optimization Op
-        self.optimize = optimizer. \
-            apply_gradients(zip(self.actor_gradients, self.network_params))
-        # self.optimize_comm = optimizer.apply_gradients(self.loss_gradients)
+        self.optimize = optimizer.apply_gradients(zip(self.actor_gradients, actor_grad_params))
+
+        print("AUXIL PREDICTION:", self.auxiliary_prediction)
+        if self.auxiliary_prediction > 0:
+            print("HERE")
+            self.optimize_comm = tf.train.AdamOptimizer(self.learning_rate).minimize(loss=self.auxiliary_prediction*self.loss,
+                                                                                     var_list=self.network_params)
 
         self.num_trainable_vars = len(self.network_params) + len(self.target_network_params)
 

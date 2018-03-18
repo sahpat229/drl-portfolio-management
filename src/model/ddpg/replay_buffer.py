@@ -125,18 +125,18 @@ class ReplayBufferRollout(object):
         s1_batch = np.array([exp[0][0] for exp in batch])
         s1w_batch = np.array([exp[0][1] for exp in batch])
         a1_batch = np.array([exp[1] for exp in batch])
-
+        s1y_batch = np.array([exp[4] for exp in batch])
         sf_batch = np.array([exp[-1][0] for exp in batch])
         sfw_batch = np.array([exp[-1][1] for exp in batch])
-        t_batch = np.array([exp[-2] for exp in batch])
+        t_batch = np.array([exp[-3] for exp in batch])
 
         rs_batch = []
         index = 2
         while index < len(batch[0]):
             rs_batch.append(np.array([exp[index] for exp in batch]))
-            index += 4
+            index += 5
 
-        return s1_batch, s1w_batch, a1_batch, rs_batch, t_batch, sf_batch, sfw_batch
+        return s1_batch, s1w_batch, a1_batch, s1y_batch, rs_batch, t_batch, sf_batch, sfw_batch
 
     def clear(self):
         self.buffer.clear()

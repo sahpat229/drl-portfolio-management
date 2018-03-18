@@ -274,7 +274,8 @@ class PortfolioEnv(gym.Env):
                  time_cost=0.00,
                  window_length=50,
                  start_idx=0,
-                 sample_start_date=None
+                 sample_start_date=None,
+                 seed=31415
                  ):
         """
         An environment for financial portfolio management.
@@ -288,6 +289,7 @@ class PortfolioEnv(gym.Env):
             start_idx - The number of days from '2012-08-13' of the dataset
             sample_start_date - The start date sampling from the history
         """
+        np.random.seed(seed)
         self.window_length = window_length
         self.num_stocks = history.shape[0]
         self.start_idx = start_idx
@@ -346,6 +348,7 @@ class PortfolioEnv(gym.Env):
         # relative price vector of last observation day (close/open)
         close_price_vector = observation[:, -1, 3]
         open_price_vector = observation[:, -1, 0]
+        #open_price_vector = observation[:, -2, 3]
         y1 = close_price_vector / open_price_vector
         reward, info, done2 = self.sim._step(weights, y1)
 
@@ -356,6 +359,7 @@ class PortfolioEnv(gym.Env):
         info['date'] = index_to_date(self.start_idx + self.src.idx + self.src.step)
         info['steps'] = self.src.step
         info['next_obs'] = ground_truth_obs
+        info['next_y1'] = ground_truth_obs[:, -1, 3] / ground_truth_obs[:, -1, 0]
 
         self.infos.append(info)
 
