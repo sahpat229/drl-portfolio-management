@@ -453,6 +453,17 @@ if __name__ == '__main__':
     variable_scope = get_variable_scope(window_length, predictor_type, use_batch_norm,
                                         learning_steps, auxil_commission, auxil_prediction)
 
+    if not load_weights:
+        for folder in [model_save_path, summary_path]:
+            for file in os.listdir(folder):
+                file_path = os.path.join(folder, file)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                    #elif os.path.isdir(file_path): shutil.rmtree(file_path)
+                except Exception as e:
+                    print(e)
+
     with tf.variable_scope(variable_scope):
         sess = tf.Session()
         actor = StockActor(sess=sess, state_dim=state_dim, action_dim=action_dim, action_bound=action_bound, 
