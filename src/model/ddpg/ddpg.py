@@ -34,7 +34,7 @@ def build_summaries():
 class DDPG(BaseModel):
     def __init__(self, env, sess, actor, critic, actor_noise, obs_normalizer=None, action_processor=None,
                  config_file='config/default.json',
-                 model_save_path='weights/ddpg/ddpg.ckpt', summary_path='results/ddpg/',
+                 model_save_path='weights/ddpg/ddpg.ckpt', summary_path='results/ddpg/', infer_path='infer/',
                  test_env=None, learning_steps=1):
         with open(config_file) as f:
             self.config = json.load(f)
@@ -45,6 +45,7 @@ class DDPG(BaseModel):
         self.model_save_path = model_save_path
         #self.model_save_path = 'weights/stock/cnn/window_3/batch_norm/checkpoint.ckpt'
         self.summary_path = summary_path
+        self.infer_path = infer_path
         self.sess = sess
         # if env is None, then DDPG just predicts
         self.env = env
@@ -58,10 +59,30 @@ class DDPG(BaseModel):
         self.start_episode = 0
         self.summary_ops, self.summary_vars = build_summaries()
 
+    def clear_path(self, folder):
+        for file in os.listdir(folder):
+            file_path = os.path.join(folder, file)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+                #elif os.path.isdir(file_path): shutil.rmtree(file_path)
+            except Exception as e:
+                print(e)
+
     def initialize(self, load_weights=True, verbose=True):
         """ Load training history from path. To be add feature to just load weights, not training states
 
         """
+
+        if not os.path.exists(self.model_save_path):
+            os.makedirs(self.model_save_path, exist_ok=True)
+        if not os.path.exists(self.summary_path):
+            os.makedirs(self.summary_path, exist_ok=True)
+        if not os.path.exists(os.path.join(self.infer_path, 'test/')):
+            os.makedirs(os.path.join(self.infer_path, 'test/'), exist_ok=True)
+        if not os.path.exists(os.path.join(self.infer_path, 'train/')):
+            os.makedirs(os.path.join(self.infer_path, 'train/'), exist_ok=True)
+
         if load_weights:
             try:
                 variables = tf.global_variables()
@@ -81,6 +102,10 @@ class DDPG(BaseModel):
                 self.sess.run(tf.global_variables_initializer())
         else:
             print('Build model from scratch')
+            self.clear_path(self.model_save_path)
+            self.clear_path(self.summary_path)
+            self.clear_path(os.path.join(self.infer_path, 'test'))
+            self.clear_path(os.path.join(self.infer_path, 'train'))
             self.sess.run(tf.global_variables_initializer())
 
     def train(self, save_every_episode=1, verbose=True, debug=False):
@@ -579,6 +604,6 @@ class DDPG(BaseModel):
             if done or j == env.steps-self.learning_steps-1:
                 label = 'train' if train else 'test'
                 env.render()
-                plt.savefig(os.path.join('./infer_' + label + '/', str(episode)+".png"))
+                plt.savefig(os.path.join(self.infer_path, label + '/', str(episode)+".png"))
                 plt.close()
                 break

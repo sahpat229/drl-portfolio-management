@@ -54,6 +54,21 @@ def get_result_path(window_length, predictor_type, use_batch_norm, learning_step
     return 'results/stock/{}/window_{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
                                                          learning_steps_str, auxiliary_str)
 
+def get_infer_path(window_length, predictor_type, use_batch_norm, learning_steps=0,
+                    auxiliary_commission=False, auxiliary_prediction=False):
+    if use_batch_norm:
+        batch_norm_str = 'batch_norm'
+    else:
+        batch_norm_str = 'no_batch_norm'
+
+    learning_steps_str = 'learning_steps_'+str(learning_steps)
+    auxiliary_str = 'auxil_commission_{}_auxil_prediction_{}'.format(str(auxiliary_commission), str(auxiliary_prediction))
+
+    #return 'results/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
+
+    return 'infer/stock/{}/window_{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
+                                                         learning_steps_str, auxiliary_str)
+
 
 def get_variable_scope(window_length, predictor_type, use_batch_norm, learning_steps=0,
                        auxiliary_commission=False, auxiliary_prediction=False):
@@ -450,19 +465,10 @@ if __name__ == '__main__':
                                      learning_steps, auxil_commission, auxil_prediction)
     summary_path = get_result_path(window_length, predictor_type, use_batch_norm,
                                    learning_steps, auxil_commission, auxil_prediction)
+    infer_path = get_infer_path(window_length, predictor_type, use_batch_norm,
+                                learning_steps, auxil_commission, auxil_prediction)
     variable_scope = get_variable_scope(window_length, predictor_type, use_batch_norm,
                                         learning_steps, auxil_commission, auxil_prediction)
-
-    if not load_weights:
-        for folder in [model_save_path, summary_path]:
-            for file in os.listdir(folder):
-                file_path = os.path.join(folder, file)
-                try:
-                    if os.path.isfile(file_path):
-                        os.unlink(file_path)
-                    #elif os.path.isdir(file_path): shutil.rmtree(file_path)
-                except Exception as e:
-                    print(e)
 
     with tf.variable_scope(variable_scope):
         sess = tf.Session()
@@ -474,6 +480,6 @@ if __name__ == '__main__':
                              predictor_type=predictor_type, use_batch_norm=use_batch_norm, use_previous=True)
         ddpg_model = DDPG(env, sess, actor, critic, actor_noise, obs_normalizer=obs_normalizer,
                           config_file='config/stock.json', model_save_path=model_save_path,
-                          summary_path=summary_path, test_env=test_env, learning_steps=learning_steps)
+                          summary_path=summary_path, infer_path=infer_path, test_env=test_env, learning_steps=learning_steps)
         ddpg_model.initialize(load_weights=load_weights, verbose=False)
         ddpg_model.train()
