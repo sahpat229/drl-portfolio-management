@@ -123,27 +123,49 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
         if DEBUG:
             print('Output:', net.shape)
     elif predictor_type == 'lstm':
+        # input shape [batch_size, num_assets, window_length, num_features]
         num_stocks = inputs.get_shape()[1]
         hidden_dim = 32
-        net = tflearn.reshape(inputs, new_shape=[-1, window_length, 1])
-        if DEBUG:
-            print('Reshaped input:', net.shape)
-        net = tflearn.lstm(net, hidden_dim)
-        if DEBUG:
-            print('After LSTM:', net.shape)
-        net = tflearn.reshape(net, new_shape=[-1, num_stocks, hidden_dim])
-        if DEBUG:
-            print('After reshape:', net.shape)
+        net = tf.transpose(inputs, [0, 2, 3, 1])
+        resultlist = []
+        reuse = False
+        for i in range(num_stocks):
+            if i > 0:
+                reuse = True
+            print("LAYER:", i)
+            result = tflearn.layers.lstm(net[:, :, :, i],
+                                         hidden_dim,
+                                         dropout=0.5,
+                                         scope="lstm_actor"+str(target),
+                                         reuse=reuse)
+            resultlist.append(result)
+        net = tf.stack(resultlist)
+        net = tf.transpose(net, [1, 0, 2])
+        print("STACKED Shape:", net.shape)
+        net = tf.reshape(net, [-1, int(num_stocks), 1, hidden_dim])
+
+        with tf.variable_scope("auxil"+str(target)):
+            auxil = None
+            if auxiliary_prediction > 0:
+                auxil = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
+                auxil = tflearn.flatten(auxil)
+
+        if use_previous:
+            net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
+            if DEBUG:
+                print('After concat:', net.shape)
+            net = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
         net = tflearn.flatten(net)
         if DEBUG:
             print('Output:', net.shape)
+
     else:
         raise NotImplementedError
 
     return net, auxil
 
 def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous, previous_input,
-                           auxiliary_commission):
+                           auxiliary_commission, target):
     window_length = inputs.get_shape()[2]
     assert predictor_type in ['cnn', 'lstm'], 'type must be either cnn or lstm'
     if predictor_type == 'cnn':
@@ -174,20 +196,39 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
         if DEBUG:
             print('Output:', net.shape)
     elif predictor_type == 'lstm':
+        # input shape [batch_size, num_assets, window_length, num_features]
         num_stocks = inputs.get_shape()[1]
         hidden_dim = 32
-        net = tflearn.reshape(inputs, new_shape=[-1, window_length, 1])
-        if DEBUG:
-            print('Reshaped input:', net.shape)
-        net = tflearn.lstm(net, hidden_dim)
-        if DEBUG:
-            print('After LSTM:', net.shape)
-        net = tflearn.reshape(net, new_shape=[-1, num_stocks, hidden_dim])
-        if DEBUG:
-            print('After reshape:', net.shape)
+        net = tf.transpose(inputs, [0, 2, 3, 1])
+        resultlist = []
+        reuse = False
+        for i in range(num_stocks):
+            if i > 0:
+                reuse = True
+            print("Layer:", i)
+            result = tflearn.layers.lstm(net[:, :, :, i],
+                                         hidden_dim,
+                                         dropout=0.5,
+                                         scope="lstm_critic"+str(target),
+                                         reuse=reuse)
+            resultlist.append(result)
+        net = tf.stack(resultlist)
+        net = tf.transpose(net, [1, 0, 2])
+        net = tf.reshape(net, [-1, int(num_stocks), 1, hidden_dim])
+
+        auxil = None
+        if auxil_commission > 0:
+            pass
+
+        if use_previous:
+            net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
+            if DEBUG:
+                print('After concat:', net.shape)
+            net = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
         net = tflearn.flatten(net)
         if DEBUG:
             print('Output:', net.shape)
+
     else:
         raise NotImplementedError
 
@@ -308,7 +349,7 @@ class StockCritic(CriticNetwork):
         self.auxiliary_commission = auxil_commission
         CriticNetwork.__init__(self, sess, state_dim, action_dim, learning_rate, tau, num_actor_vars)
 
-    def create_critic_network(self):
+    def create_critic_network(self, target):
         inputs = tflearn.input_data(shape=[None] + self.s_dim + [1])
         action = tflearn.input_data(shape=[None] + self.a_dim)
 
@@ -319,7 +360,8 @@ class StockCritic(CriticNetwork):
             portfolio_reshaped = tflearn.reshape(portfolio_inputs, new_shape=[-1]+self.a_dim+[1, 1])
 
         net, auxil = stock_predictor_critic(inputs, self.predictor_type, self.use_batch_norm, 
-                                            self.use_previous, portfolio_reshaped, auxil_commission)
+                                            self.use_previous, portfolio_reshaped, auxil_commission,
+                                            target)
 
         # Add the action tensor in the 2nd hidden layer
         # Use two temp layers to get the corresponding weights and biases
