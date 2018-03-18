@@ -12,10 +12,11 @@ from model.ddpg.ornstein_uhlenbeck import OrnsteinUhlenbeckActionNoise
 from environment.portfolio import PortfolioEnv
 from utils.data import read_stock_history, normalize
 
+import argparse
 import numpy as np
 import tflearn
 import tensorflow as tf
-import argparse
+import pandas as pd
 import pprint
 import utils.datacontainer
 
@@ -34,8 +35,8 @@ def get_model_path(window_length, predictor_type, use_batch_norm, learning_steps
 
     #return 'weights/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
 
-    return 'weights/stock/{}/window_{}/{}/{}/{}/checkpoint.ckpt'.format(predictor_type, window_length, batch_norm_str,
-                                                                        learning_steps_str, auxiliary_str)
+    return 'weights/stock/{}/window_{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
+                                                         learning_steps_str, auxiliary_str)
 
 
 def get_result_path(window_length, predictor_type, use_batch_norm, learning_steps=0,
@@ -121,6 +122,7 @@ class StockActor(ActorNetwork):
         self.predictor_type = predictor_type
         self.use_batch_norm = use_batch_norm
         self.use_previous = use_previous
+        self.auxiliary_prediction = auxiliary_prediction
         ActorNetwork.__init__(self, sess, state_dim, action_dim, action_bound, learning_rate, tau, batch_size)
 
     def create_actor_network(self):
@@ -139,25 +141,27 @@ class StockActor(ActorNetwork):
             portfolio_reshaped = tflearn.reshape(portfolio_inputs, new_shape=[-1]+self.a_dim+[1, 1])
 
         net = stock_predictor(inputs, self.predictor_type, self.use_batch_norm, self.use_previous, portfolio_reshaped)
-
-        net = tflearn.fully_connected(net, 64)
-        if self.use_batch_norm:
-            net = tflearn.layers.normalization.batch_normalization(net)
-        # net = tflearn.layers.normalization.batch_normalization(net)
-        net = tflearn.activations.relu(net)
-        net = tflearn.fully_connected(net, 64)
-        if self.use_batch_norm:
-            net = tflearn.layers.normalization.batch_normalization(net)
-        # net = tflearn.layers.normalization.batch_normalization(net)
-        net = tflearn.activations.relu(net)
-        # Final layer weights are init to Uniform[-3e-3, 3e-3]
-        w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        out = tflearn.fully_connected(net, self.a_dim[0], activation='softmax', weights_init=w_init)
-        # Scale output to -action_bound to action_bound
+        out = tf.nn.softmax(net)
         scaled_out = tf.multiply(out, self.action_bound)
 
+        # net = tflearn.fully_connected(net, 64)
+        # if self.use_batch_norm:
+        #     net = tflearn.layers.normalization.batch_normalization(net)
+        # # net = tflearn.layers.normalization.batch_normalization(net)
+        # net = tflearn.activations.relu(net)
+        # net = tflearn.fully_connected(net, 64)
+        # if self.use_batch_norm:
+        #     net = tflearn.layers.normalization.batch_normalization(net)
+        # # net = tflearn.layers.normalization.batch_normalization(net)
+        # net = tflearn.activations.relu(net)
+        # # Final layer weights are init to Uniform[-3e-3, 3e-3]
+        # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
+        # out = tflearn.fully_connected(net, self.a_dim[0], activation='softmax', weights_init=w_init)
+        # # Scale output to -action_bound to action_bound
+        # scaled_out = tf.multiply(out, self.action_bound)
+
         loss = None
-        if self.use_previous:
+        if self.use_previous and self.auxiliary_prediction:
             loss = tf.reduce_mean(tf.reduce_sum(tf.square(scaled_out - portfolio_inputs), axis=-1))
 
         return inputs, out, scaled_out, portfolio_inputs, loss
@@ -347,28 +351,46 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Provide arguments for training different DDPG models')
 
-    parser.add_argument('--debug', '-d', help='print debug statement', default=False)
+    parser.add_argument('--debug', '-d', help='print debug statement', default=False, type=bool)
     parser.add_argument('--predictor_type', '-p', help='cnn or lstm predictor', required=True)
-    parser.add_argument('--window_length', '-w', help='observation window length', required=True)
-    parser.add_argument('--batch_norm', '-b', help='whether to use batch normalization', required=True)
-    parser.add_argument('--learning_steps', '-l', help='number of learning steps for DDPG', required=True)
-    parser.add_argument('--auxil_commission', '-ac', help='whether to use auxiliary commission', default=False)
-    parser.add_argument('--auxil_prediction', '-ap', help='whether to use auxiliary prediction', default=False)
+    parser.add_argument('--window_length', '-w', help='observation window length', required=True, type=int)
+    parser.add_argument('--batch_norm', '-b', help='whether to use batch normalization', required=True, type=bool)
+    parser.add_argument('--learning_steps', '-l', help='number of learning steps for DDPG', required=True, type=int)
+    parser.add_argument('--auxil_commission', '-ac', help='whether to use auxiliary commission', default=False, type=bool)
+    parser.add_argument('--auxil_prediction', '-ap', help='whether to use auxiliary prediction', default=False, type=bool)
+    parser.add_argument('--actor_tau', '-at', help='actor tau constant', default=1e-3, type=float)
+    parser.add_argument('--critic_tau', '-ct', help='critic tau constant', default=1e-3, type=float)
+    parser.add_argument('--actor_learning_rate', '-al', help='actor learning rate', default=1e-4, type=float)
+    parser.add_argument('--critic_learning_rate', '-cl', help='critic learning rate', default=1e-3, type=float)
+    parser.add_argument('--batch_size', '-bs', help='batch size', default=64, type=int)
+    parser.add_argument('--action_bound', '-ab', help='action bound', default=1, type=int)
+    parser.add_argument('--load_weights', '-lw', help='load previous weights', default=False, type=bool)
 
     args = vars(parser.parse_args())
 
     pprint.pprint(args)
 
-    if args['debug'] == 'True':
-        DEBUG = True
-    else:
-        DEBUG = False
+    DEBUG=args['debug']
+    predictor_type = args['predictor_type']
+    window_length = args['window_length']
+    use_batch_norm = args['batch_norm']
+    learning_steps = args['learning_steps']
+    auxil_commission = args['auxil_commission']
+    auxil_prediction = args['auxil_prediction']
+    actor_tau = args['actor_tau']
+    critic_tau = args['critic_tau']
+    actor_learning_rate = args['actor_learning_rate']
+    critic_learning_rate = args['critic_learning_rate']
+    batch_size = args['batch_size']
+    action_bound = args['action_bound']
+    load_weights = args['load_weights']
+
+    assert args['predictor_type'] in ['cnn', 'lstm'], 'Predictor must be either cnn or lstm'
 
     history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
     history = history[:, :, :4]
     target_stocks = abbreviation
     num_training_time = 1095
-    window_length = int(args['window_length'])
     nb_classes = len(target_stocks) + 1
 
     # get target history
@@ -383,6 +405,29 @@ if __name__ == '__main__':
     for i, stock in enumerate(testing_stocks):
         test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
 
+    env = PortfolioEnv(target_history, target_stocks, steps=1000, window_length=window_length)
+    test_env = PortfolioEnv(test_history, testing_stocks, steps=test_history.shape[1]-10, window_length=window_length)
+
+
+    # pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='train')
+    # asset_names = list(pd_data.columns.levels[0])
+    # closes = [pd_data[asset_name, 'close'].values for asset_name in asset_names]
+    # opens = [pd_data[asset_name, 'open'].values for asset_name in asset_names]
+    # lows = [pd_data[asset_name, 'low'].values for asset_name in asset_names]
+    # highs = [pd_data[asset_name, 'high'].values for asset_name in asset_names]
+    # target_history = np.stack([opens, highs, lows, closes], axis=-1)
+
+    # pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='test')
+    # asset_names = list(pd_data.columns.levels[0])
+    # closes = [pd_data[asset_name, 'close'].values for asset_name in asset_names]
+    # opens = [pd_data[asset_name, 'open'].values for asset_name in asset_names]
+    # lows = [pd_data[asset_name, 'low'].values for asset_name in asset_names]
+    # highs = [pd_data[asset_name, 'high'].values for asset_name in asset_names]
+    # test_history = np.stack([opens, highs, lows, closes], axis=-1)    
+
+    # nb_classes = len(asset_names) + 1
+    # env = PortfolioEnv(target_history, asset_names, steps=3000, window_length=window_length)
+    # test_env = PortfolioEnv(test_history, asset_names, steps=3000, window_length=window_length)
 
     # setup environment
 
@@ -397,32 +442,8 @@ if __name__ == '__main__':
     # target_stocks = ['BTC']
     # nb_classes = len(target_stocks) + 1
 
-    env = PortfolioEnv(target_history, target_stocks, steps=1000, window_length=window_length)
-    test_env = PortfolioEnv(test_history, testing_stocks, steps=test_history.shape[1]-10, window_length=window_length)
-
     action_dim = [nb_classes]
     state_dim = [nb_classes, window_length]
-    batch_size = 64
-    action_bound = 1.
-    tau = 1e-3
-    assert args['predictor_type'] in ['cnn', 'lstm'], 'Predictor must be either cnn or lstm'
-    predictor_type = args['predictor_type']
-    if args['batch_norm'] == 'True':
-        use_batch_norm = True
-    elif args['batch_norm'] == 'False':
-        use_batch_norm = False
-    else:
-        raise ValueError('Unknown batch norm argument')
-
-    learning_steps = int(args['learning_steps'])
-    if args['auxil_commission'] == 'True':
-        auxil_commission = True
-    else:
-        auxil_commission = False
-    if args['auxil_prediction'] == 'True':
-        auxil_prediction = True
-    else:
-        auxil_prediction = False
 
     actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_dim))
     model_save_path = get_model_path(window_length, predictor_type, use_batch_norm, 
@@ -434,13 +455,14 @@ if __name__ == '__main__':
 
     with tf.variable_scope(variable_scope):
         sess = tf.Session()
-        actor = StockActor(sess, state_dim, action_dim, action_bound, 1e-4, tau, batch_size,
-                           predictor_type, use_batch_norm, use_previous=True)
-        critic = StockCritic(sess=sess, state_dim=state_dim, action_dim=action_dim, tau=1e-3,
+        actor = StockActor(sess=sess, state_dim=state_dim, action_dim=action_dim, action_bound=action_bound, 
+                           learning_rate=1e-4, tau=actor_tau, batch_size=batch_size,
+                           predictor_type=predictor_type, use_batch_norm=use_batch_norm, use_previous=True)
+        critic = StockCritic(sess=sess, state_dim=state_dim, action_dim=action_dim, tau=critic_tau,
                              learning_rate=1e-3, num_actor_vars=actor.get_num_trainable_vars(),
                              predictor_type=predictor_type, use_batch_norm=use_batch_norm, use_previous=True)
         ddpg_model = DDPG(env, sess, actor, critic, actor_noise, obs_normalizer=obs_normalizer,
                           config_file='config/stock.json', model_save_path=model_save_path,
                           summary_path=summary_path, test_env=test_env, learning_steps=learning_steps)
-        ddpg_model.initialize(load_weights=False)
+        ddpg_model.initialize(load_weights=load_weights, verbose=False)
         ddpg_model.train()

@@ -70,7 +70,8 @@ class ActorNetwork(object):
             self.scaled_out, self.network_params, -self.action_gradient)
         self.actor_gradients = list(map(lambda x: tf.div(x, self.batch_size), self.unnormalized_actor_gradients))
 
-        self.loss_gradients = optimizer.compute_gradients(self.loss, self.network_params)
+        if self.use_previous and self.auxiliary_prediction:
+            self.loss_gradients = optimizer.compute_gradients(self.loss, self.network_params)
 
         # Optimization Op
         self.optimize = optimizer. \

@@ -55,6 +55,7 @@ class DDPG(BaseModel):
         self.action_processor = action_processor
         self.test_env = test_env
         self.learning_steps = learning_steps
+        self.start_episode = 0
         self.summary_ops, self.summary_vars = build_summaries()
 
     def initialize(self, load_weights=True, verbose=True):
@@ -66,7 +67,9 @@ class DDPG(BaseModel):
                 variables = tf.global_variables()
                 param_dict = {}
                 saver = tf.train.Saver()
-                saver.restore(self.sess, self.model_save_path)
+                latest_checkpoint = tf.train.latest_checkpoint(self.model_save_path)
+                self.start_episode = int(latest_checkpoint.split('-')[1]) + 1
+                saver.restore(self.sess, latest_checkpoint)
                 for var in variables:
                     var_name = var.name[:-2]
                     if verbose:
@@ -104,7 +107,7 @@ class DDPG(BaseModel):
         self.buffer = ReplayBufferRollout(self.config['buffer size'])
 
         # main training loop
-        for i in range(num_episode):
+        for i in range(self.start_episode, num_episode):
             if verbose and debug:
                 print("Episode: " + str(i) + " Replay Buffer " + str(self.buffer.count()))
 
@@ -233,11 +236,16 @@ class DDPG(BaseModel):
                         print("INFERRING")
                         self.infer(i, True)
                         self.infer(i, False)
+
+                    if ((i+1) % 50) == 0:
+                        print("SAVING")
+                        self.save_model(i, 7, verbose=True)
+
                     print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}, Qmin{:.4f}'.format(i, 
                         ep_reward, (ep_ave_max_q / float(j)), (ep_ave_min_q / float(j))))
                     break
 
-        self.save_model(verbose=True)
+        self.save_model(i, 7, verbose=True)
         print('Finish.')
 
     # def train(self, save_every_episode=1, verbose=True, debug=False):
@@ -422,12 +430,13 @@ class DDPG(BaseModel):
             action = self.action_processor(action)
         return action
 
-    def save_model(self, verbose=False):
+    def save_model(self, episode, max_to_keep=5, verbose=False):
         if not os.path.exists(self.model_save_path):
             os.makedirs(self.model_save_path, exist_ok=True)
 
-        saver = tf.train.Saver()
-        model_path = saver.save(self.sess, self.model_save_path)
+        saver = tf.train.Saver(max_to_keep=max_to_keep)
+        model_path = saver.save(self.sess, os.path.join(self.model_save_path, "checkpoint.ckpt"), 
+                                global_step=episode)
         print("Model saved in %s" % model_path)
 
     # def infer(self, episode, train):
