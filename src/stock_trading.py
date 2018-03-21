@@ -10,7 +10,7 @@ from model.ddpg.ddpg import DDPG
 from model.ddpg.ornstein_uhlenbeck import OrnsteinUhlenbeckActionNoise
 
 from environment.portfolio import PortfolioEnv
-from utils.data import read_stock_history, normalize
+from utils.data import read_stock_history, read_stock_history_csvs, normalize
 
 import argparse
 import numpy as np
@@ -530,7 +530,32 @@ if __name__ == '__main__':
 
     assert args['predictor_type'] in ['cnn', 'lstm'], 'Predictor must be either cnn or lstm'
 
-    history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
+##################################### NASDAQ ##########################################
+
+    # history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
+    # history = history[:, :, :4]
+    # history[:, 1:, 2] = history[:, 0:-1, 3] # correct opens
+    # target_stocks = abbreviation
+    # num_training_time = 1095
+    # nb_classes = len(target_stocks) + 1
+
+    # # get target history
+    # target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
+    # for i, stock in enumerate(target_stocks):
+    #     target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
+    # print(target_history.shape)
+
+    # testing_stocks = abbreviation
+    # test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
+    #                                history.shape[2]))
+    # for i, stock in enumerate(testing_stocks):
+    #     test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
+
+    # env = PortfolioEnv(target_history, target_stocks, steps=1000, window_length=window_length)
+    # test_env = PortfolioEnv(test_history, testing_stocks, steps=test_history.shape[1]-10, window_length=window_length)
+
+################################## DOW JONES ###########################################
+    history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
     history = history[:, :, :4]
     history[:, 1:, 2] = history[:, 0:-1, 3] # correct opens
     target_stocks = abbreviation
@@ -550,28 +575,37 @@ if __name__ == '__main__':
         test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
 
     env = PortfolioEnv(target_history, target_stocks, steps=1000, window_length=window_length)
-    test_env = PortfolioEnv(test_history, testing_stocks, steps=test_history.shape[1]-10, window_length=window_length)
+    test_env = PortfolioEnv(test_history, testing_stocks, steps=test_history.shape[1]-10, window_length=window_length)    
 
+######################################## BITCOIN #######################################
 
     # pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='train')
     # asset_names = list(pd_data.columns.levels[0])
-    # closes = [pd_data[asset_name, 'close'].values for asset_name in asset_names]
-    # opens = [pd_data[asset_name, 'open'].values for asset_name in asset_names]
-    # lows = [pd_data[asset_name, 'low'].values for asset_name in asset_names]
-    # highs = [pd_data[asset_name, 'high'].values for asset_name in asset_names]
+    # closes = [pd_data[asset_name, 'close'].values[::48] for asset_name in asset_names]
+    # opens = [pd_data[asset_name, 'open'].values[::48] for asset_name in asset_names]
+    # lows = [pd_data[asset_name, 'low'].values[::48] for asset_name in asset_names]
+    # highs = [pd_data[asset_name, 'high'].values[::48] for asset_name in asset_names]
     # target_history = np.stack([opens, highs, lows, closes], axis=-1)
 
     # pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='test')
     # asset_names = list(pd_data.columns.levels[0])
-    # closes = [pd_data[asset_name, 'close'].values for asset_name in asset_names]
-    # opens = [pd_data[asset_name, 'open'].values for asset_name in asset_names]
-    # lows = [pd_data[asset_name, 'low'].values for asset_name in asset_names]
-    # highs = [pd_data[asset_name, 'high'].values for asset_name in asset_names]
+    # closes = [pd_data[asset_name, 'close'].values[::48] for asset_name in asset_names]
+    # opens = [pd_data[asset_name, 'open'].values[::48] for asset_name in asset_names]
+    # lows = [pd_data[asset_name, 'low'].values[::48] for asset_name in asset_names]
+    # highs = [pd_data[asset_name, 'high'].values[::48] for asset_name in asset_names]
     # test_history = np.stack([opens, highs, lows, closes], axis=-1)    
 
     # nb_classes = len(asset_names) + 1
-    # env = PortfolioEnv(target_history, asset_names, steps=3000, window_length=window_length)
-    # test_env = PortfolioEnv(test_history, asset_names, steps=3000, window_length=window_length)
+    # env = PortfolioEnv(target_history, 
+    #                    asset_names, 
+    #                    steps=target_history.shape[1]-learning_steps-window_length-1, 
+    #                    window_length=window_length)
+    # test_env = PortfolioEnv(test_history, 
+    #                         asset_names, 
+    #                         steps=test_history.shape[1]-learning_steps-window_length-1, 
+    #                         window_length=window_length)
+
+######################################## TEST CONTAINER ########################################
 
     # setup environment
 

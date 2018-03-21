@@ -8,6 +8,8 @@ import csv
 import datetime
 import numpy as np
 import h5py
+import os
+import pandas as pd
 
 start_date = '2012-08-13'
 end_date = '2017-08-11'
@@ -167,6 +169,20 @@ def read_stock_history(filepath='datasets/stocks_history.h5'):
         abbreviation = f['abbreviation'][:].tolist()
         abbreviation = [abbr.decode('utf-8') for abbr in abbreviation]
     return history, abbreviation
+
+def read_stock_history_csvs(csv_directory):
+    """ Read data from the csv path 
+    """
+    filenames = os.listdir(csv_directory)
+    filenames = [filename for filename in filenames if "daily" in filename]
+    abbreviations = [filename.split('_')[1] for filename in filenames]
+    asset_values = []
+    for abbrev, filename in zip(abbreviations, filenames):
+        data = pd.read_csv(os.path.join(csv_directory, filename))
+        values = np.flip(data.values[:, 1:], axis=0)
+        asset_values.append(values)
+    asset_values = np.array(asset_values)
+    return asset_values, abbreviations
 
 
 def index_to_date(index):

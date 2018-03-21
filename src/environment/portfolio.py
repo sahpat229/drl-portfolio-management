@@ -15,6 +15,7 @@ import gym
 import gym.spaces
 
 from utils.data import date_to_index, index_to_date
+from pgportfolio.tools.configprocess import load_config
 
 eps = 1e-8
 
