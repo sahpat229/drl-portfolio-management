@@ -35,7 +35,7 @@ class DDPG(BaseModel):
     def __init__(self, env, sess, actor, critic, actor_noise, obs_normalizer=None, action_processor=None,
                  gamma=0.5, training_episodes=600, max_rollout_steps=1000, buffer_size=100000, seed=1337, batch_size=64,
                  model_save_path='weights/ddpg/ddpg.ckpt', summary_path='results/ddpg/', infer_path='infer/',
-                 test_env=None, learning_steps=1):
+                 infer_train_env=None, infer_test_env=None, learning_steps=1):
         np.random.seed(seed)
         if env:
             env.seed(seed)
@@ -57,7 +57,8 @@ class DDPG(BaseModel):
         self.buffer_size = buffer_size
         self.seed = seed
         self.batch_size = batch_size
-        self.test_env = test_env
+        self.infer_train_env = infer_train_env
+        self.infer_test_env = infer_test_env
         self.learning_steps = learning_steps
         self.start_episode = 0
         self.summary_ops, self.summary_vars = build_summaries()
@@ -546,9 +547,9 @@ class DDPG(BaseModel):
 
         """
         if not train:
-            env = self.test_env
+            env = self.infer_test_env
         else:
-            env = self.env
+            env = self.infer_train_env
 
         episode_rollout = deque()
 

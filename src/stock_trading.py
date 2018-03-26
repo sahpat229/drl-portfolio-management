@@ -250,7 +250,7 @@ class StockActor(ActorNetwork):
         nb_classes, window_length = self.s_dim
         assert nb_classes == self.a_dim[0]
         assert window_length > 2, 'This architecture only support window length larger than 2.'
-        inputs = tflearn.input_data(shape=[None] + self.s_dim + [1], name='input')
+        inputs = tflearn.input_data(shape=[None] + self.s_dim + [3], name='input')
 
         portfolio_inputs = None
         portfolio_reshaped = None
@@ -350,7 +350,7 @@ class StockCritic(CriticNetwork):
         CriticNetwork.__init__(self, sess, state_dim, action_dim, learning_rate, tau, num_actor_vars)
 
     def create_critic_network(self, target):
-        inputs = tflearn.input_data(shape=[None] + self.s_dim + [1])
+        inputs = tflearn.input_data(shape=[None] + self.s_dim + [3])
         action = tflearn.input_data(shape=[None] + self.a_dim)
 
         portfolio_inputs = None
@@ -454,7 +454,10 @@ def obs_normalizer(observation):
     if isinstance(observation, tuple):
         observation = observation[0]
     # directly use close/open ratio as feature
-    observation = observation[:, :, 3:4] / observation[:, :, 0:1]
+    divisor = observation[:, -1, 3]
+    divisor = divisor[:, None, None]
+    observation = observation[:, :, 1:4] / divisor
+    #observation = observation[:, :, 3:4] / observation[:, :, 0:1]
     observation = normalize(observation)
     return observation
 
@@ -532,12 +535,31 @@ if __name__ == '__main__':
 
 ##################################### NASDAQ ##########################################
 
-    # history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
+    history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
+    history = history[:, :, :4]
+    history[:, 1:, 0] = history[:, 0:-1, 3] # correct opens
+    target_stocks = abbreviation[0:4]
+    num_training_time = 1095
+
+    # get target history
+    target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
+    for i, stock in enumerate(target_stocks):
+        target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
+    print("target:", target_history.shape)
+
+    testing_stocks = abbreviation[0:4]
+    test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
+                                   history.shape[2]))
+    for i, stock in enumerate(testing_stocks):
+        test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
+    print("test:", test_history.shape)
+
+################################## DOW JONES ###########################################
+    # history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
     # history = history[:, :, :4]
     # history[:, 1:, 2] = history[:, 0:-1, 3] # correct opens
     # target_stocks = abbreviation
     # num_training_time = 1095
-    # nb_classes = len(target_stocks) + 1
 
     # # get target history
     # target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
@@ -550,32 +572,6 @@ if __name__ == '__main__':
     #                                history.shape[2]))
     # for i, stock in enumerate(testing_stocks):
     #     test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
-
-    # env = PortfolioEnv(target_history, target_stocks, steps=1000, window_length=window_length)
-    # test_env = PortfolioEnv(test_history, testing_stocks, steps=test_history.shape[1]-10, window_length=window_length)
-
-################################## DOW JONES ###########################################
-    history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
-    history = history[:, :, :4]
-    history[:, 1:, 2] = history[:, 0:-1, 3] # correct opens
-    target_stocks = abbreviation
-    num_training_time = 1095
-    nb_classes = len(target_stocks) + 1
-
-    # get target history
-    target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
-    for i, stock in enumerate(target_stocks):
-        target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
-    print(target_history.shape)
-
-    testing_stocks = abbreviation
-    test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
-                                   history.shape[2]))
-    for i, stock in enumerate(testing_stocks):
-        test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
-
-    env = PortfolioEnv(target_history, target_stocks, steps=1000, window_length=window_length)
-    test_env = PortfolioEnv(test_history, testing_stocks, steps=test_history.shape[1]-10, window_length=window_length)    
 
 ######################################## BITCOIN #######################################
 
@@ -595,21 +591,11 @@ if __name__ == '__main__':
     # highs = [pd_data[asset_name, 'high'].values[::48] for asset_name in asset_names]
     # test_history = np.stack([opens, highs, lows, closes], axis=-1)    
 
-    # nb_classes = len(asset_names) + 1
-    # env = PortfolioEnv(target_history, 
-    #                    asset_names, 
-    #                    steps=target_history.shape[1]-learning_steps-window_length-1, 
-    #                    window_length=window_length)
-    # test_env = PortfolioEnv(test_history, 
-    #                         asset_names, 
-    #                         steps=test_history.shape[1]-learning_steps-window_length-1, 
-    #                         window_length=window_length)
-
 ######################################## TEST CONTAINER ########################################
 
     # setup environment
 
-    #dc = utils.datacontainer.TestContainer(shape='ar', num_assets=4, num_samples=2000, alpha=0.9, kappa=3)
+    # dc = utils.datacontainer.TestContainer(shape='ar', num_assets=4, num_samples=2000, alpha=0.9, kappa=3)
     # dc = utils.datacontainer.BitcoinTestContainer(csv_file_name='./datasets/output.csv')
     # target_history = dc.train_close
     # num_assets = target_history.shape[0]
@@ -618,7 +604,23 @@ if __name__ == '__main__':
     # target_history = np.stack((opens, filler, filler, target_history), axis=-1)
     # print(target_history.shape)
     # target_stocks = ['BTC']
-    # nb_classes = len(target_stocks) + 1
+
+###############################################################################################
+    train_env = PortfolioEnv(target_history, 
+                             target_stocks, 
+                             steps=min(max_rollout_steps, target_history.shape[1]-window_length-learning_steps), 
+                             window_length=window_length)
+    infer_train_env = PortfolioEnv(target_history, 
+                                   target_stocks, 
+                                   steps=target_history.shape[1]-window_length-learning_steps,
+                                   window_length=window_length)
+    infer_test_env = PortfolioEnv(test_history, 
+                                  testing_stocks, 
+                                  steps=test_history.shape[1]-window_length-learning_steps, 
+                                  window_length=window_length)
+    infer_train_env.reset()
+    infer_test_env.reset()
+    nb_classes = len(target_stocks) + 1
 
     action_dim = [nb_classes]
     state_dim = [nb_classes, window_length]
@@ -643,9 +645,10 @@ if __name__ == '__main__':
                              learning_rate=1e-3, num_actor_vars=actor.get_num_trainable_vars(),
                              predictor_type=predictor_type, use_batch_norm=use_batch_norm, use_previous=True,
                              auxiliary_commission=auxil_commission)
-        ddpg_model = DDPG(env, sess, actor, critic, actor_noise, obs_normalizer=obs_normalizer,
+        ddpg_model = DDPG(train_env, sess, actor, critic, actor_noise, obs_normalizer=obs_normalizer,
                           gamma=gamma, training_episodes=training_episodes, max_rollout_steps=max_rollout_steps,
                           buffer_size=buffer_size, seed=seed, batch_size=batch_size, model_save_path=model_save_path,
-                          summary_path=summary_path, infer_path=infer_path, test_env=test_env, learning_steps=learning_steps)
+                          summary_path=summary_path, infer_path=infer_path, infer_train_env=infer_train_env,
+                          infer_test_env=infer_test_env, learning_steps=learning_steps)
         ddpg_model.initialize(load_weights=load_weights, verbose=False)
         ddpg_model.train()
