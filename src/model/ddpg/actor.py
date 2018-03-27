@@ -78,9 +78,12 @@ class ActorNetwork(object):
 
         print("AUXIL PREDICTION:", self.auxiliary_prediction)
         if self.auxiliary_prediction > 0:
-            print("HERE")
-            self.optimize_comm = tf.train.AdamOptimizer(self.learning_rate).minimize(loss=self.auxiliary_prediction*self.loss,
+            mse_diff = tf.reduce_mean(tf.reduce_sum(tf.square(self.scaled_out - self.portfolio_inputs), axis=-1))
+            self.optimize_comm = tf.train.AdamOptimizer(self.learning_rate).minimize(loss=self.auxiliary_prediction*mse_diff,
                                                                                      var_list=self.network_params)
+            print("HERE")
+            #self.optimize_comm = tf.train.AdamOptimizer(self.learning_rate).minimize(loss=self.auxiliary_prediction*self.loss,
+            #                                                                         var_list=self.network_params)
 
         self.num_trainable_vars = len(self.network_params) + len(self.target_network_params)
 
