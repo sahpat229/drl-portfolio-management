@@ -555,23 +555,22 @@ if __name__ == '__main__':
     # print("test:", test_history.shape)
 
 ################################## DOW JONES ###########################################
-    # history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
-    # history = history[:, :, :4]
-    # history[:, 1:, 2] = history[:, 0:-1, 3] # correct opens
-    # target_stocks = abbreviation
-    # num_training_time = 1095
+    history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
+    history = history[:, :, :4]
+    history[:, 1:, 2] = history[:, 0:-1, 3] # correct opens
+    target_stocks = abbreviation
+    num_training_time = int(history.shape[1] * 3 / 4)
 
-    # # get target history
-    # target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
-    # for i, stock in enumerate(target_stocks):
-    #     target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
-    # print(target_history.shape)
+    # get target history
+    target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
+    for i, stock in enumerate(target_stocks):
+        target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
 
-    # testing_stocks = abbreviation
-    # test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
-    #                                history.shape[2]))
-    # for i, stock in enumerate(testing_stocks):
-    #     test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
+    testing_stocks = abbreviation
+    test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
+                                   history.shape[2]))
+    for i, stock in enumerate(testing_stocks):
+        test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
 
 ######################################## BITCOIN #######################################
 
@@ -598,23 +597,23 @@ if __name__ == '__main__':
 
     # setup environment
 
-    dc = utils.datacontainer.TestContainer(shape='ar', num_assets=4, num_samples=20000, alpha=0.9, kappa=3)
-    #dc = utils.datacontainer.BitcoinTestContainer(csv_file_name='./datasets/output.csv')
-    target_history = dc.train_close
-    num_assets = target_history.shape[0]
-    opens = target_history[:, :-1]
-    target_history = target_history[:, 1:]
-    filler = np.zeros((num_assets, target_history.shape[1]))
-    target_history = np.stack((opens, filler, filler, target_history), axis=-1)
-    target_stocks = ['' for _ in range(4)]
+    # dc = utils.datacontainer.TestContainer(shape='ar', num_assets=4, num_samples=20000, alpha=0.9, kappa=3)
+    # #dc = utils.datacontainer.BitcoinTestContainer(csv_file_name='./datasets/output.csv')
+    # target_history = dc.train_close
+    # num_assets = target_history.shape[0]
+    # opens = target_history[:, :-1]
+    # target_history = target_history[:, 1:]
+    # filler = np.zeros((num_assets, target_history.shape[1]))
+    # target_history = np.stack((opens, filler, filler, target_history), axis=-1)
+    # target_stocks = ['' for _ in range(4)]
 
-    test_history = dc.test_close
-    num_assets = test_history.shape[0]
-    opens = test_history[:, :-1]
-    test_history = test_history[:, 1:]
-    filler = np.zeros((num_assets, test_history.shape[1]))
-    test_history = np.stack((opens, filler, filler, test_history), axis=-1)
-    testing_stocks = target_stocks
+    # test_history = dc.test_close
+    # num_assets = test_history.shape[0]
+    # opens = test_history[:, :-1]
+    # test_history = test_history[:, 1:]
+    # filler = np.zeros((num_assets, test_history.shape[1]))
+    # test_history = np.stack((opens, filler, filler, test_history), axis=-1)
+    # testing_stocks = target_stocks
 
 ###############################################################################################
     train_env = PortfolioEnv(target_history, 
