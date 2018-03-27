@@ -535,24 +535,24 @@ if __name__ == '__main__':
 
 ##################################### NASDAQ ##########################################
 
-    history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
-    history = history[:, :, :4]
-    history[:, 1:, 0] = history[:, 0:-1, 3] # correct opens
-    target_stocks = abbreviation[0:4]
-    num_training_time = 1095
+    # history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
+    # history = history[:, :, :4]
+    # history[:, 1:, 0] = history[:, 0:-1, 3] # correct opens
+    # target_stocks = abbreviation[0:4]
+    # num_training_time = 1095
 
-    # get target history
-    target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
-    for i, stock in enumerate(target_stocks):
-        target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
-    print("target:", target_history.shape)
+    # # get target history
+    # target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
+    # for i, stock in enumerate(target_stocks):
+    #     target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
+    # print("target:", target_history.shape)
 
-    testing_stocks = abbreviation[0:4]
-    test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
-                                   history.shape[2]))
-    for i, stock in enumerate(testing_stocks):
-        test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
-    print("test:", test_history.shape)
+    # testing_stocks = abbreviation[0:4]
+    # test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
+    #                                history.shape[2]))
+    # for i, stock in enumerate(testing_stocks):
+    #     test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
+    # print("test:", test_history.shape)
 
 ################################## DOW JONES ###########################################
     # history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
@@ -575,21 +575,24 @@ if __name__ == '__main__':
 
 ######################################## BITCOIN #######################################
 
-    # pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='train')
-    # asset_names = list(pd_data.columns.levels[0])
-    # closes = [pd_data[asset_name, 'close'].values[::48] for asset_name in asset_names]
-    # opens = [pd_data[asset_name, 'open'].values[::48] for asset_name in asset_names]
-    # lows = [pd_data[asset_name, 'low'].values[::48] for asset_name in asset_names]
-    # highs = [pd_data[asset_name, 'high'].values[::48] for asset_name in asset_names]
-    # target_history = np.stack([opens, highs, lows, closes], axis=-1)
+    pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='train')
+    asset_names = list(pd_data.columns.levels[0])
+    closes = [pd_data[asset_name, 'close'].values[::48] for asset_name in asset_names]
+    opens = [pd_data[asset_name, 'open'].values[::48] for asset_name in asset_names]
+    lows = [pd_data[asset_name, 'low'].values[::48] for asset_name in asset_names]
+    highs = [pd_data[asset_name, 'high'].values[::48] for asset_name in asset_names]
+    target_history = np.stack([opens, highs, lows, closes], axis=-1)
 
-    # pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='test')
-    # asset_names = list(pd_data.columns.levels[0])
-    # closes = [pd_data[asset_name, 'close'].values[::48] for asset_name in asset_names]
-    # opens = [pd_data[asset_name, 'open'].values[::48] for asset_name in asset_names]
-    # lows = [pd_data[asset_name, 'low'].values[::48] for asset_name in asset_names]
-    # highs = [pd_data[asset_name, 'high'].values[::48] for asset_name in asset_names]
-    # test_history = np.stack([opens, highs, lows, closes], axis=-1)    
+    pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='test')
+    asset_names = list(pd_data.columns.levels[0])
+    closes = [pd_data[asset_name, 'close'].values[::48] for asset_name in asset_names]
+    opens = [pd_data[asset_name, 'open'].values[::48] for asset_name in asset_names]
+    lows = [pd_data[asset_name, 'low'].values[::48] for asset_name in asset_names]
+    highs = [pd_data[asset_name, 'high'].values[::48] for asset_name in asset_names]
+    test_history = np.stack([opens, highs, lows, closes], axis=-1)
+
+    target_stocks = asset_names
+    testing_stocks = asset_names
 
 ######################################## TEST CONTAINER ########################################
 
