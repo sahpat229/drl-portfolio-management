@@ -575,38 +575,46 @@ if __name__ == '__main__':
 
 ######################################## BITCOIN #######################################
 
-    pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='train')
-    asset_names = list(pd_data.columns.levels[0])
-    closes = [pd_data[asset_name, 'close'].values[::48] for asset_name in asset_names]
-    opens = [pd_data[asset_name, 'open'].values[::48] for asset_name in asset_names]
-    lows = [pd_data[asset_name, 'low'].values[::48] for asset_name in asset_names]
-    highs = [pd_data[asset_name, 'high'].values[::48] for asset_name in asset_names]
-    target_history = np.stack([opens, highs, lows, closes], axis=-1)
+    # pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='train')
+    # asset_names = list(pd_data.columns.levels[0])
+    # closes = [pd_data[asset_name, 'close'].values[::48] for asset_name in asset_names]
+    # opens = [pd_data[asset_name, 'open'].values[::48] for asset_name in asset_names]
+    # lows = [pd_data[asset_name, 'low'].values[::48] for asset_name in asset_names]
+    # highs = [pd_data[asset_name, 'high'].values[::48] for asset_name in asset_names]
+    # target_history = np.stack([opens, highs, lows, closes], axis=-1)
 
-    pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='test')
-    asset_names = list(pd_data.columns.levels[0])
-    closes = [pd_data[asset_name, 'close'].values[::48] for asset_name in asset_names]
-    opens = [pd_data[asset_name, 'open'].values[::48] for asset_name in asset_names]
-    lows = [pd_data[asset_name, 'low'].values[::48] for asset_name in asset_names]
-    highs = [pd_data[asset_name, 'high'].values[::48] for asset_name in asset_names]
-    test_history = np.stack([opens, highs, lows, closes], axis=-1)
+    # pd_data = pd.read_hdf('./datasets/poloniex_30m.hf', key='test')
+    # asset_names = list(pd_data.columns.levels[0])
+    # closes = [pd_data[asset_name, 'close'].values[::48] for asset_name in asset_names]
+    # opens = [pd_data[asset_name, 'open'].values[::48] for asset_name in asset_names]
+    # lows = [pd_data[asset_name, 'low'].values[::48] for asset_name in asset_names]
+    # highs = [pd_data[asset_name, 'high'].values[::48] for asset_name in asset_names]
+    # test_history = np.stack([opens, highs, lows, closes], axis=-1)
 
-    target_stocks = asset_names
-    testing_stocks = asset_names
+    # target_stocks = asset_names
+    # testing_stocks = asset_names
 
 ######################################## TEST CONTAINER ########################################
 
     # setup environment
 
-    # dc = utils.datacontainer.TestContainer(shape='ar', num_assets=4, num_samples=2000, alpha=0.9, kappa=3)
-    # dc = utils.datacontainer.BitcoinTestContainer(csv_file_name='./datasets/output.csv')
-    # target_history = dc.train_close
-    # num_assets = target_history.shape[0]
-    # opens = np.concatenate((np.ones((num_assets, 1)), target_history[:, :-1]), axis=1)
-    # filler = np.zeros((num_assets, target_history.shape[1]))
-    # target_history = np.stack((opens, filler, filler, target_history), axis=-1)
-    # print(target_history.shape)
-    # target_stocks = ['BTC']
+    dc = utils.datacontainer.TestContainer(shape='ar', num_assets=4, num_samples=20000, alpha=0.9, kappa=3)
+    #dc = utils.datacontainer.BitcoinTestContainer(csv_file_name='./datasets/output.csv')
+    target_history = dc.train_close
+    num_assets = target_history.shape[0]
+    opens = target_history[:, :-1]
+    target_history = target_history[:, 1:]
+    filler = np.zeros((num_assets, target_history.shape[1]))
+    target_history = np.stack((opens, filler, filler, target_history), axis=-1)
+    target_stocks = ['' for _ in range(4)]
+
+    test_history = dc.test_close
+    num_assets = test_history.shape[0]
+    opens = test_history[:, :-1]
+    test_history = test_history[:, 1:]
+    filler = np.zeros((num_assets, test_history.shape[1]))
+    test_history = np.stack((opens, filler, filler, test_history), axis=-1)
+    testing_stocks = target_stocks
 
 ###############################################################################################
     train_env = PortfolioEnv(target_history, 
