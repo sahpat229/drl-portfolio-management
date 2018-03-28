@@ -91,15 +91,16 @@ def get_variable_scope(window_length, predictor_type, use_batch_norm, learning_s
 
 
 def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, previous_input,
-                          auxiliary_prediction, target):
+                          auxiliary_prediction, target, batch_size):
     window_length = inputs.get_shape()[2]
+    input_num = tf.shape(inputs)[0]
     assert predictor_type in ['cnn', 'lstm'], 'type must be either cnn or lstm'
     if predictor_type == 'cnn':
-        net = tflearn.conv_2d(inputs, 32, (1, 3), padding='valid')
+        net = tflearn.conv_2d(inputs, 3, (1, 3), padding='valid')
         if use_batch_norm:
             net = tflearn.layers.normalization.batch_normalization(net)
         net = tflearn.activations.relu(net)
-        net = tflearn.conv_2d(net, 32, (1, window_length - 2), padding='valid')
+        net = tflearn.conv_2d(net, 10, (1, window_length - 2), padding='valid', regularizer='L2', weight_decay=5e-9)
         if use_batch_norm:
             net = tflearn.layers.normalization.batch_normalization(net)
         net = tflearn.activations.relu(net)
@@ -116,10 +117,16 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
             if DEBUG:
                 print('After concat:', net.shape)
-            net = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
+            net = tflearn.conv_2d(net, 1, (1, 1), padding='valid', regularizer='L2', weight_decay=5e-8)
             if DEBUG:
                 print('After portfolio conv2d:', net.shape)
-        net = tflearn.flatten(net)
+
+        net = net[:, :, 0, 0]
+        btc_bias = tf.get_variable("btc_bias_actor"+str(target), [1, 1], dtype=tf.float32,
+                               initializer=tf.zeros_initializer)
+        btc_bias = tf.tile(btc_bias, [input_num, 1])
+        net = tf.concat([btc_bias, net], 1)
+        
         if DEBUG:
             print('Output:', net.shape)
     elif predictor_type == 'lstm':
@@ -165,34 +172,42 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
     return net, auxil
 
 def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous, previous_input,
-                           auxiliary_commission, target):
+                           auxiliary_commission, target, batch_size):
     window_length = inputs.get_shape()[2]
+    input_num = tf.shape(inputs)[0]
     assert predictor_type in ['cnn', 'lstm'], 'type must be either cnn or lstm'
     if predictor_type == 'cnn':
-        net = tflearn.conv_2d(inputs, 32, (1, 3), padding='valid')
+        net = tflearn.conv_2d(inputs, 3, (1, 3), padding='valid')
         if use_batch_norm:
             net = tflearn.layers.normalization.batch_normalization(net)
         net = tflearn.activations.relu(net)
-        net = tflearn.conv_2d(net, 32, (1, window_length - 2), padding='valid')
+        net = tflearn.conv_2d(net, 10, (1, window_length - 2), padding='valid', regularizer='L2', weight_decay=5e-9)
         if use_batch_norm:
             net = tflearn.layers.normalization.batch_normalization(net)
         net = tflearn.activations.relu(net)
         if DEBUG:
             print('After conv2d:', net.shape)
 
-        auxil = None
-        if auxiliary_commission > 0:
-            auxil = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-            auxil = tflearn.flatten(auxil)
+        with tf.variable_scope("auxil"+str(target)):
+            auxil = None
+            if auxiliary_commission > 0:
+                auxil = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
+                auxil = tflearn.flatten(auxil)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
             if DEBUG:
                 print('After concat:', net.shape)
-            net = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
+            net = tflearn.conv_2d(net, 1, (1, 1), padding='valid', regularizer='L2', weight_decay=5e-8)
             if DEBUG:
                 print('After portfolio conv2d:', net.shape)
-        net = tflearn.flatten(net)
+
+        net = net[:, :, 0, 0]
+        btc_bias = tf.get_variable("btc_bias_critic"+str(target), [1, 1], dtype=tf.float32,
+                               initializer=tf.zeros_initializer)
+        btc_bias = tf.tile(btc_bias, [input_num, 1])
+        net = tf.concat([btc_bias, net], 1)
+        
         if DEBUG:
             print('Output:', net.shape)
     elif predictor_type == 'lstm':
@@ -205,20 +220,23 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
         for i in range(num_stocks):
             if i > 0:
                 reuse = True
-            print("Layer:", i)
+            print("LAYER:", i)
             result = tflearn.layers.lstm(net[:, :, :, i],
                                          hidden_dim,
                                          dropout=0.5,
-                                         scope="lstm_critic"+str(target),
+                                         scope="lstm_actor"+str(target),
                                          reuse=reuse)
             resultlist.append(result)
         net = tf.stack(resultlist)
         net = tf.transpose(net, [1, 0, 2])
+        print("STACKED Shape:", net.shape)
         net = tf.reshape(net, [-1, int(num_stocks), 1, hidden_dim])
 
-        auxil = None
-        if auxil_commission > 0:
-            pass
+        with tf.variable_scope("auxil"+str(target)):
+            auxil = None
+            if auxiliary_commission > 0:
+                auxil = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
+                auxil = tflearn.flatten(auxil)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -247,8 +265,6 @@ class StockActor(ActorNetwork):
         """
         self.s_dim: a list specifies shape
         """
-        nb_classes, window_length = self.s_dim
-        assert nb_classes == self.a_dim[0]
         assert window_length > 2, 'This architecture only support window length larger than 2.'
         inputs = tflearn.input_data(shape=[None] + self.s_dim + [3], name='input')
 
@@ -260,7 +276,7 @@ class StockActor(ActorNetwork):
 
         net, auxil = stock_predictor_actor(inputs, self.predictor_type, self.use_batch_norm, 
                                            self.use_previous, portfolio_reshaped, self.auxiliary_prediction,
-                                           target)
+                                           target, self.batch_size)
         out = tf.nn.softmax(net)
         scaled_out = tf.multiply(out, self.action_bound)
 
@@ -341,17 +357,20 @@ class StockActor(ActorNetwork):
 
 
 class StockCritic(CriticNetwork):
-    def __init__(self, sess, state_dim, action_dim, learning_rate, tau, num_actor_vars,
+    def __init__(self, sess, state_dim, action_dim, learning_rate, tau, batch_size, num_actor_vars,
                  predictor_type, use_batch_norm, use_previous=False, auxiliary_commission=0):
         self.predictor_type = predictor_type
         self.use_batch_norm = use_batch_norm
         self.use_previous = use_previous
         self.auxiliary_commission = auxil_commission
+        self.batch_size = batch_size
         CriticNetwork.__init__(self, sess, state_dim, action_dim, learning_rate, tau, num_actor_vars)
 
     def create_critic_network(self, target):
         inputs = tflearn.input_data(shape=[None] + self.s_dim + [3])
-        action = tflearn.input_data(shape=[None] + self.a_dim)
+
+        action_dim = [self.a_dim[0]+1]
+        action = tflearn.input_data(shape=[None] + action_dim)
 
         portfolio_inputs = None
         portfolio_reshaped = None
@@ -361,7 +380,7 @@ class StockCritic(CriticNetwork):
 
         net, auxil = stock_predictor_critic(inputs, self.predictor_type, self.use_batch_norm, 
                                             self.use_previous, portfolio_reshaped, auxil_commission,
-                                            target)
+                                            target, batch_size)
 
         # Add the action tensor in the 2nd hidden layer
         # Use two temp layers to get the corresponding weights and biases
@@ -377,9 +396,17 @@ class StockCritic(CriticNetwork):
         # Weights are init to Uniform[-3e-3, 3e-3]
         w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
         out = tflearn.fully_connected(net, 1, weights_init=w_init)
-        return inputs, action, out, portfolio_inputs
 
-    def train(self, inputs, action, predicted_q_value, portfolio_inputs=None):
+        loss = 0
+        future_y_inputs = None
+        if self.auxiliary_commission > 0:
+            print("HERE")
+            future_y_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
+            loss = tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs), axis=-1))
+
+        return inputs, action, out, portfolio_inputs, loss, future_y_inputs
+
+    def train(self, inputs, action, predicted_q_value, portfolio_inputs=None, future_y_inputs=None):
         window_length = self.s_dim[1]
         inputs = inputs[:, :, -window_length:, :]
         if not self.use_previous:
@@ -389,12 +416,22 @@ class StockCritic(CriticNetwork):
                 self.predicted_q_value: predicted_q_value
             })
         else:
-            return self.sess.run([self.out, self.optimize], feed_dict={
-                self.inputs: inputs,
-                self.portfolio_inputs: portfolio_inputs,
-                self.action: action,
-                self.predicted_q_value: predicted_q_value
-            })
+            if self.auxiliary_commission > 0:
+                return self.sess.run([self.out, self.optimize], feed_dict={
+                    self.inputs: inputs,
+                    self.portfolio_inputs: portfolio_inputs,
+                    self.action: action,
+                    self.predicted_q_value: predicted_q_value,
+                    self.future_y_inputs: future_y_inputs
+                 })
+
+            else:
+                return self.sess.run([self.out, self.optimize], feed_dict={
+                    self.inputs: inputs,
+                    self.portfolio_inputs: portfolio_inputs,
+                    self.action: action,
+                    self.predicted_q_value: predicted_q_value
+                })
 
     def predict(self, inputs, action, portfolio_inputs=None):
         window_length = self.s_dim[1]
@@ -535,42 +572,42 @@ if __name__ == '__main__':
 
 ##################################### NASDAQ ##########################################
 
-    # history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
-    # history = history[:, :, :4]
-    # history[:, 1:, 0] = history[:, 0:-1, 3] # correct opens
-    # target_stocks = abbreviation[0:4]
-    # num_training_time = 1095
-
-    # # get target history
-    # target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
-    # for i, stock in enumerate(target_stocks):
-    #     target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
-    # print("target:", target_history.shape)
-
-    # testing_stocks = abbreviation[0:4]
-    # test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
-    #                                history.shape[2]))
-    # for i, stock in enumerate(testing_stocks):
-    #     test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
-    # print("test:", test_history.shape)
-
-################################## DOW JONES ###########################################
-    history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
+    history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
     history = history[:, :, :4]
-    history[:, 1:, 2] = history[:, 0:-1, 3] # correct opens
-    target_stocks = abbreviation
-    num_training_time = int(history.shape[1] * 3 / 4)
+    history[:, 1:, 0] = history[:, 0:-1, 3] # correct opens
+    target_stocks = abbreviation[0:4]
+    num_training_time = 1095
 
     # get target history
     target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
     for i, stock in enumerate(target_stocks):
         target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
+    print("target:", target_history.shape)
 
-    testing_stocks = abbreviation
+    testing_stocks = abbreviation[0:4]
     test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
                                    history.shape[2]))
     for i, stock in enumerate(testing_stocks):
         test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
+    print("test:", test_history.shape)
+
+################################## DOW JONES ###########################################
+    # history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
+    # history = history[:, :, :4]
+    # history[:, 1:, 2] = history[:, 0:-1, 3] # correct opens
+    # target_stocks = abbreviation
+    # num_training_time = int(history.shape[1] * 3 / 4)
+
+    # # get target history
+    # target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
+    # for i, stock in enumerate(target_stocks):
+    #     target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
+
+    # testing_stocks = abbreviation
+    # test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
+    #                                history.shape[2]))
+    # for i, stock in enumerate(testing_stocks):
+    #     test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
 
 ######################################## BITCOIN #######################################
 
@@ -630,12 +667,13 @@ if __name__ == '__main__':
                                   window_length=window_length)
     infer_train_env.reset()
     infer_test_env.reset()
-    nb_classes = len(target_stocks) + 1
+    nb_classes = len(target_stocks)
 
     action_dim = [nb_classes]
     state_dim = [nb_classes, window_length]
 
-    actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_dim))
+    actor_noise_dim = [nb_classes + 1]
+    actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(actor_noise_dim))
     model_save_path = get_model_path(window_length, predictor_type, use_batch_norm, 
                                      learning_steps, gamma, auxil_commission, auxil_prediction)
     summary_path = get_result_path(window_length, predictor_type, use_batch_norm,
@@ -651,7 +689,7 @@ if __name__ == '__main__':
                            learning_rate=1e-4, tau=actor_tau, batch_size=batch_size,
                            predictor_type=predictor_type, use_batch_norm=use_batch_norm, use_previous=True,
                            auxiliary_prediction=auxil_prediction)
-        critic = StockCritic(sess=sess, state_dim=state_dim, action_dim=action_dim, tau=critic_tau,
+        critic = StockCritic(sess=sess, state_dim=state_dim, action_dim=action_dim, tau=critic_tau, batch_size=batch_size,
                              learning_rate=1e-3, num_actor_vars=actor.get_num_trainable_vars(),
                              predictor_type=predictor_type, use_batch_norm=use_batch_norm, use_previous=True,
                              auxiliary_commission=auxil_commission)

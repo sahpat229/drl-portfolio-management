@@ -147,6 +147,9 @@ class DDPG(BaseModel):
 
             if self.obs_normalizer:
                 observation_1 = self.obs_normalizer(observation_1)
+            observation_1 = observation_1[1:, :, :]
+            weights_1 = weights_1[1:]
+            #print("w_size:", len(weights_1))
 
             episode_rollout.append([observation_1, weights_1])
 
@@ -164,6 +167,10 @@ class DDPG(BaseModel):
 
                 if self.obs_normalizer:
                     new_obs = self.obs_normalizer(new_obs)
+                new_obs = new_obs[1:, :, :]
+                new_ws = new_ws[1:]
+                #print("new_w_size:", len(new_ws))
+
                 episode_rollout.append(action)
                 episode_rollout.append(reward)
                 episode_rollout.append(done)
@@ -195,6 +202,9 @@ class DDPG(BaseModel):
 
                 if self.obs_normalizer:
                     obs = self.obs_normalizer(obs)
+                obs = obs[1:, :, :]
+                ws = ws[1:]
+                #print("rollout_ws_size", len(ws))
 
                 episode_rollout.append(action)
                 episode_rollout.append(reward)
@@ -210,6 +220,9 @@ class DDPG(BaseModel):
 
                     s1_batch, s1w_batch, a1_batch, s1y_batch, rs_batch, \
                         t_batch, sf_batch, sfw_batch = self.buffer.sample_batch(batch_size)
+                    s1y_batch = s1y_batch[:, 1:]
+
+                    #print(sf_batch.shape, sfw_batch.shape)
 
                     # Calculate targets
                     target_q = self.critic.predict_target(inputs=sf_batch, 
@@ -232,7 +245,8 @@ class DDPG(BaseModel):
                     predicted_q_value, _ = self.critic.train(inputs=s1_batch, 
                                                              action=a1_batch, 
                                                              predicted_q_value=np.reshape(y_i, (batch_size, 1)),
-                                                             portfolio_inputs=s1w_batch)
+                                                             portfolio_inputs=s1w_batch,
+                                                             future_y_inputs=s1y_batch)
 
                     ep_ave_max_q += np.amax(predicted_q_value)
                     ep_ave_min_q += np.amin(predicted_q_value)
@@ -559,6 +573,9 @@ class DDPG(BaseModel):
         if self.obs_normalizer:
             observation_1 = self.obs_normalizer(observation_1)
 
+        observation_1 = observation_1[1:, :, :]
+        weights_1 = weights_1[1:]
+
         episode_rollout.append([observation_1, weights_1])
 
         for rollout_step in range(self.learning_steps - 1):
@@ -575,6 +592,9 @@ class DDPG(BaseModel):
 
             if self.obs_normalizer:
                 new_obs = self.obs_normalizer(new_obs)
+            new_obs = new_obs[1:, :, :]
+            new_ws = new_ws[1:]
+
             episode_rollout.append(action)
             episode_rollout.append(reward)
             episode_rollout.append(done)
@@ -600,6 +620,8 @@ class DDPG(BaseModel):
 
             if self.obs_normalizer:
                 obs = self.obs_normalizer(obs)
+            obs = obs[1:, :, :]
+            ws = ws[1:]
 
             episode_rollout.append(action)
             episode_rollout.append(reward)

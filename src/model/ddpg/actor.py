@@ -36,6 +36,7 @@ class ActorNetwork(object):
         self.s_dim = state_dim
         assert isinstance(action_dim, list), 'action_dim must be a list.'
         self.a_dim = action_dim
+        print("Self.a_dim:", self.a_dim)
         self.action_bound = action_bound
         self.learning_rate = learning_rate
         self.tau = tau
@@ -62,7 +63,8 @@ class ActorNetwork(object):
              for i in range(len(self.target_network_params))]
 
         # This gradient will be provided by the critic network
-        self.action_gradient = tf.placeholder(tf.float32, [None] + self.a_dim)
+        action_grad_dim = [self.a_dim[0]+1]
+        self.action_gradient = tf.placeholder(tf.float32, [None] + action_grad_dim)
 
         optimizer = tf.train.AdamOptimizer(self.learning_rate)
 
@@ -79,7 +81,7 @@ class ActorNetwork(object):
         print("AUXIL PREDICTION:", self.auxiliary_prediction)
         if self.auxiliary_prediction > 0:
             mse_diff = tf.reduce_mean(tf.reduce_sum(tf.square(self.scaled_out - self.portfolio_inputs), axis=-1))
-            self.optimize_comm = tf.train.AdamOptimizer(self.learning_rate).minimize(loss=self.auxiliary_prediction*mse_diff,
+            self.optimize_comm = tf.train.AdamOptimizer(self.learning_rate).minimize(loss=self.auxiliary_prediction*self.loss,
                                                                                      var_list=self.network_params)
             print("HERE")
             #self.optimize_comm = tf.train.AdamOptimizer(self.learning_rate).minimize(loss=self.auxiliary_prediction*self.loss,

@@ -23,12 +23,14 @@ class CriticNetwork(object):
         self.tau = tau
 
         # Create the critic network
-        self.inputs, self.action, self.out, self.portfolio_inputs = self.create_critic_network(False)
+        self.inputs, self.action, self.out, self.portfolio_inputs, \
+            self.auxil_loss, self.future_y_inputs = self.create_critic_network(False)
 
         self.network_params = tf.trainable_variables()[num_actor_vars:]
 
         # Target Network
-        self.target_inputs, self.target_action, self.target_out, self.target_portfolio_inputs = self.create_critic_network(True)
+        self.target_inputs, self.target_action, self.target_out, self.target_portfolio_inputs, \
+            self.auxil_target_loss, self.target_future_y_inputs = self.create_critic_network(True)
 
         self.target_network_params = tf.trainable_variables()[(len(self.network_params) + num_actor_vars):]
 
@@ -45,7 +47,7 @@ class CriticNetwork(object):
         # Define loss and optimization Op
         self.loss = tflearn.mean_square(self.predicted_q_value, self.out)
         self.optimize = tf.train.AdamOptimizer(
-            self.learning_rate).minimize(self.loss)
+            self.learning_rate).minimize(self.loss+self.auxiliary_commission*self.auxil_loss)
 
         # Get the gradient of the net w.r.t. the action.
         # For each action in the minibatch (i.e., for each x in xs),
