@@ -278,7 +278,7 @@ class DDPG(BaseModel):
                     writer.add_summary(summary_str, i)
                     writer.flush()
 
-                    if (i % 10) == 0:
+                    if (i % 100) == 0:
                         print("INFERRING")
                         self.infer(i, True)
                         self.infer(i, False)
