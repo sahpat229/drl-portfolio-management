@@ -24,7 +24,7 @@ DEBUG = True
 
 
 def get_model_path(window_length, predictor_type, use_batch_norm, learning_steps=0, gamma=0.5,
-                   auxiliary_commission=0, auxiliary_prediction=0):
+                   auxiliary_commission=0, actor_auxiliary_prediction=0, critic_auxiliary_prediction=0):
     if use_batch_norm:
         batch_norm_str = 'batch_norm'
     else:
@@ -32,16 +32,18 @@ def get_model_path(window_length, predictor_type, use_batch_norm, learning_steps
 
     learning_steps_str = 'learning_steps_'+str(learning_steps)
     gamma_str = 'gamma_'+str(gamma)
-    auxiliary_str = 'auxil_commission_{}_auxil_prediction_{}'.format(str(auxiliary_commission), str(auxiliary_prediction))
+    auxiliary_str = 'ac_{}_aap_{}_cap_{}'.format(str(float(auxiliary_commission)),
+                                                 str(float(actor_auxiliary_prediction)),
+                                                 str(float(critic_auxiliary_prediction)))
 
     #return 'weights/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
 
-    return 'weights/stock/{}/window_{}/{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
-                                                         learning_steps_str, gamma_str, auxiliary_str)
+    return 'weights/{}/window_{}/{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
+                                                      learning_steps_str, gamma_str, auxiliary_str)
 
 
 def get_result_path(window_length, predictor_type, use_batch_norm, learning_steps=0, gamma=0.5,
-                    auxiliary_commission=0, auxiliary_prediction=0):
+                    auxiliary_commission=0, actor_auxiliary_prediction=0, critic_auxiliary_prediction=0):
     if use_batch_norm:
         batch_norm_str = 'batch_norm'
     else:
@@ -49,15 +51,17 @@ def get_result_path(window_length, predictor_type, use_batch_norm, learning_step
 
     learning_steps_str = 'learning_steps_'+str(learning_steps)
     gamma_str = 'gamma_'+str(gamma)
-    auxiliary_str = 'auxil_commission_{}_auxil_prediction_{}'.format(str(auxiliary_commission), str(auxiliary_prediction))
+    auxiliary_str = 'ac_{}_aap_{}_cap_{}'.format(str(float(auxiliary_commission)),
+                                                 str(float(actor_auxiliary_prediction)),
+                                                 str(float(critic_auxiliary_prediction)))
 
     #return 'results/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
 
-    return 'results/stock/{}/window_{}/{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
-                                                            learning_steps_str, gamma_str, auxiliary_str)
+    return 'results/{}/window_{}/{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
+                                                      learning_steps_str, gamma_str, auxiliary_str)
 
 def get_infer_path(window_length, predictor_type, use_batch_norm, learning_steps=0, gamma=0.5,
-                    auxiliary_commission=0, auxiliary_prediction=0):
+                    auxiliary_commission=0, actor_auxiliary_prediction=0, critic_auxiliary_prediction=0):
     if use_batch_norm:
         batch_norm_str = 'batch_norm'
     else:
@@ -65,16 +69,17 @@ def get_infer_path(window_length, predictor_type, use_batch_norm, learning_steps
 
     learning_steps_str = 'learning_steps_'+str(learning_steps)
     gamma_str = 'gamma_'+str(gamma)
-    auxiliary_str = 'auxil_commission_{}_auxil_prediction_{}'.format(str(auxiliary_commission), str(auxiliary_prediction))
-
+    auxiliary_str = 'ac_{}_aap_{}_cap_{}'.format(str(float(auxiliary_commission)),
+                                                 str(float(actor_auxiliary_prediction)),
+                                                 str(float(critic_auxiliary_prediction)))
     #return 'results/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
 
-    return 'infer/stock/{}/window_{}/{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
-                                                          learning_steps_str, gamma_str, auxiliary_str)
+    return 'infer/{}/window_{}/{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
+                                                    learning_steps_str, gamma_str, auxiliary_str)
 
 
 def get_variable_scope(window_length, predictor_type, use_batch_norm, learning_steps=0, gamma=0.5,
-                       auxiliary_commission=0, auxiliary_prediction=0):
+                       auxiliary_commission=0, actor_auxiliary_prediction=0, critic_auxiliary_prediction=0):
     if use_batch_norm:
         batch_norm_str = 'batch_norm'
     else:
@@ -82,8 +87,9 @@ def get_variable_scope(window_length, predictor_type, use_batch_norm, learning_s
 
     learning_steps_str = 'learning_steps_'+str(learning_steps)
     gamma_str = 'gamma_'+str(gamma)
-    auxiliary_str = 'auxil_commission_{}_auxil_prediction_{}'.format(str(auxiliary_commission), str(auxiliary_prediction))
-
+    auxiliary_str = 'ac_{}_aap_{}_cap_{}'.format(str(float(auxiliary_commission)),
+                                                 str(float(actor_auxiliary_prediction)),
+                                                 str(float(critic_auxiliary_prediction)))
     #return '{}_window_{}_{}'.format(predictor_type, window_length, batch_norm_str)
 
     return '{}_window_{}_{}_{}_{}_{}'.format(predictor_type, window_length, batch_norm_str,
@@ -91,7 +97,7 @@ def get_variable_scope(window_length, predictor_type, use_batch_norm, learning_s
 
 
 def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, previous_input,
-                          auxiliary_prediction, target):
+                          actor_auxiliary_prediction, target):
     window_length = inputs.get_shape()[2]
     assert predictor_type in ['cnn', 'lstm'], 'type must be either cnn or lstm'
     if predictor_type == 'cnn':
@@ -106,11 +112,11 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
         if DEBUG:
             print('After conv2d:', net.shape)
 
-        with tf.variable_scope("auxil"+str(target)):
-            auxil = None
-            if auxiliary_prediction > 0:
-                auxil = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-                auxil = tflearn.flatten(auxil)
+        with tf.variable_scope("actor_auxiliary_prediction"+str(target)):
+            auxiliary_prediction = None
+            if actor_auxiliary_prediction > 0:
+                auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
+                auxiliary_prediction = tflearn.flatten(auxil)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -122,6 +128,7 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
         net = tflearn.flatten(net)
         if DEBUG:
             print('Output:', net.shape)
+
     elif predictor_type == 'lstm':
         # input shape [batch_size, num_assets, window_length, num_features]
         num_stocks = inputs.get_shape()[1]
@@ -144,11 +151,11 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
         print("STACKED Shape:", net.shape)
         net = tf.reshape(net, [-1, int(num_stocks), 1, hidden_dim])
 
-        with tf.variable_scope("auxil"+str(target)):
-            auxil = None
-            if auxiliary_prediction > 0:
-                auxil = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-                auxil = tflearn.flatten(auxil)
+        with tf.variable_scope("actor_auxiliary_prediction"+str(target)):
+            auxiliary_prediction = None
+            if actor_auxiliary_prediction > 0:
+                auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
+                auxiliary_prediction = tflearn.flatten(auxil)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -162,10 +169,10 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
     else:
         raise NotImplementedError
 
-    return net, auxil
+    return net, auxiliary_prediction
 
 def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous, previous_input,
-                           auxiliary_commission, target):
+                           critic_auxiliary_prediction, target):
     window_length = inputs.get_shape()[2]
     assert predictor_type in ['cnn', 'lstm'], 'type must be either cnn or lstm'
     if predictor_type == 'cnn':
@@ -180,10 +187,11 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
         if DEBUG:
             print('After conv2d:', net.shape)
 
-        auxil = None
-        if auxiliary_commission > 0:
-            auxil = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-            auxil = tflearn.flatten(auxil)
+        with tf.variable_scope("critic_auxiliary_prediction"+str(target)):
+            auxiliary_prediction = None
+            if critic_auxiliary_prediction > 0:
+                auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
+                auxiliary_prediction = tflearn.flatten(auxil)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -216,9 +224,11 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
         net = tf.transpose(net, [1, 0, 2])
         net = tf.reshape(net, [-1, int(num_stocks), 1, hidden_dim])
 
-        auxil = None
-        if auxil_commission > 0:
-            pass
+        with tf.variable_scope("critic_auxiliary_prediction"+str(target)):
+            auxiliary_prediction = None
+            if critic_auxiliary_prediction > 0:
+                auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
+                auxiliary_prediction = tflearn.flatten(auxil)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -232,15 +242,17 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
     else:
         raise NotImplementedError
 
-    return net, auxil
+    return net, auxiliary_prediction
 
 class StockActor(ActorNetwork):
     def __init__(self, sess, state_dim, action_dim, action_bound, learning_rate, tau, batch_size,
-                 predictor_type, use_batch_norm, use_previous=False, auxiliary_prediction=0):
+                 predictor_type, use_batch_norm, use_previous=False, auxiliary_commission=0,
+                 actor_auxiliary_prediction=0):
         self.predictor_type = predictor_type
         self.use_batch_norm = use_batch_norm
         self.use_previous = use_previous
-        self.auxiliary_prediction = auxiliary_prediction
+        self.auxiliary_commission = auxiliary_commission
+        self.actor_auxiliary_prediction = actor_auxiliary_prediction
         ActorNetwork.__init__(self, sess, state_dim, action_dim, action_bound, learning_rate, tau, batch_size)
 
     def create_actor_network(self, target):
@@ -259,33 +271,17 @@ class StockActor(ActorNetwork):
             portfolio_reshaped = tflearn.reshape(portfolio_inputs, new_shape=[-1]+self.a_dim+[1, 1])
 
         net, auxil = stock_predictor_actor(inputs, self.predictor_type, self.use_batch_norm, 
-                                           self.use_previous, portfolio_reshaped, self.auxiliary_prediction,
+                                           self.use_previous, portfolio_reshaped, self.actor_auxiliary_prediction,
                                            target)
         out = tf.nn.softmax(net)
         scaled_out = tf.multiply(out, self.action_bound)
 
-        # net = tflearn.fully_connected(net, 64)
-        # if self.use_batch_norm:
-        #     net = tflearn.layers.normalization.batch_normalization(net)
-        # # net = tflearn.layers.normalization.batch_normalization(net)
-        # net = tflearn.activations.relu(net)
-        # net = tflearn.fully_connected(net, 64)
-        # if self.use_batch_norm:
-        #     net = tflearn.layers.normalization.batch_normalization(net)
-        # # net = tflearn.layers.normalization.batch_normalization(net)
-        # net = tflearn.activations.relu(net)
-        # # Final layer weights are init to Uniform[-3e-3, 3e-3]
-        # w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
-        # out = tflearn.fully_connected(net, self.a_dim[0], activation='softmax', weights_init=w_init)
-        # # Scale output to -action_bound to action_bound
-        # scaled_out = tf.multiply(out, self.action_bound)
-
         loss = None
         future_y_inputs = None
-        if self.auxiliary_prediction > 0:
-            print("HERE")
+        if self.actor_auxiliary_prediction > 0:
             future_y_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
-            loss = tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs), axis=-1))
+            loss = self.actor_auxiliary_prediction* \
+                tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs), axis=-1))
 
         return inputs, out, scaled_out, portfolio_inputs, loss, future_y_inputs
 
@@ -298,18 +294,19 @@ class StockActor(ActorNetwork):
                 self.action_gradient: a_gradient
             })
         else:
-            if self.auxiliary_prediction > 0:
-                self.sess.run([self.optimize, self.optimize_comm], feed_dict={
+            if self.actor_auxiliary_prediction > 0:
+                self.sess.run([self.optimize, self.optimize_comm, self.optimize_prediction], feed_dict={
                     self.inputs: inputs,
                     self.portfolio_inputs: portfolio_inputs,
                     self.action_gradient: a_gradient,
                     self.future_y_inputs: future_y_inputs
-                })                
-            self.sess.run([self.optimize], feed_dict={
-                self.inputs: inputs,
-                self.portfolio_inputs: portfolio_inputs,
-                self.action_gradient: a_gradient
-            })
+                })
+            else:                
+                self.sess.run([self.optimize, self.optimize_comm], feed_dict={
+                    self.inputs: inputs,
+                    self.portfolio_inputs: portfolio_inputs,
+                    self.action_gradient: a_gradient
+                })
 
     def predict(self, inputs, portfolio_inputs=None):
         #print("BEFOREINPUT:", inputs.shape)
@@ -342,11 +339,11 @@ class StockActor(ActorNetwork):
 
 class StockCritic(CriticNetwork):
     def __init__(self, sess, state_dim, action_dim, learning_rate, tau, num_actor_vars,
-                 predictor_type, use_batch_norm, use_previous=False, auxiliary_commission=0):
+                 predictor_type, use_batch_norm, use_previous=False, critic_auxiliary_prediction=0):
         self.predictor_type = predictor_type
         self.use_batch_norm = use_batch_norm
         self.use_previous = use_previous
-        self.auxiliary_commission = auxil_commission
+        self.critic_auxiliary_prediction = critic_auxiliary_prediction
         CriticNetwork.__init__(self, sess, state_dim, action_dim, learning_rate, tau, num_actor_vars)
 
     def create_critic_network(self, target):
@@ -360,14 +357,15 @@ class StockCritic(CriticNetwork):
             portfolio_reshaped = tflearn.reshape(portfolio_inputs, new_shape=[-1]+self.a_dim+[1, 1])
 
         net, auxil = stock_predictor_critic(inputs, self.predictor_type, self.use_batch_norm, 
-                                            self.use_previous, portfolio_reshaped, auxil_commission,
+                                            self.use_previous, portfolio_reshaped, self.critic_auxiliary_prediction,
                                             target)
 
         loss = 0
         future_y_inputs = None
-        if self.auxiliary_commission > 0:
+        if self.critic_auxiliary_prediction > 0:
             future_y_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
-            loss = tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs), axis=-1))
+            loss = self.critic_auxiliary_prediction* \
+                tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs), axis=-1))
 
         # Add the action tensor in the 2nd hidden layer
         # Use two temp layers to get the corresponding weights and biases
@@ -395,7 +393,7 @@ class StockCritic(CriticNetwork):
                 self.predicted_q_value: predicted_q_value
             })
         else:
-            if self.auxiliary_commission > 0:
+            if self.critic_auxiliary_prediction > 0:
                 return self.sess.run([self.out, self.optimize], feed_dict={
                     self.inputs: inputs,
                     self.portfolio_inputs: portfolio_inputs,
@@ -404,12 +402,13 @@ class StockCritic(CriticNetwork):
                     self.future_y_inputs: future_y_inputs
                 })
 
-            return self.sess.run([self.out, self.optimize], feed_dict={
-                self.inputs: inputs,
-                self.portfolio_inputs: portfolio_inputs,
-                self.action: action,
-                self.predicted_q_value: predicted_q_value
-            })
+            else:       
+                return self.sess.run([self.out, self.optimize], feed_dict={
+                    self.inputs: inputs,
+                    self.portfolio_inputs: portfolio_inputs,
+                    self.action: action,
+                    self.predicted_q_value: predicted_q_value
+                })
 
     def predict(self, inputs, action, portfolio_inputs=None):
         window_length = self.s_dim[1]
@@ -508,7 +507,8 @@ if __name__ == '__main__':
     parser.add_argument('--batch_norm', '-b', help='whether to use batch normalization', required=True, type=bool)
     parser.add_argument('--learning_steps', '-l', help='number of learning steps for DDPG', required=True, type=int)
     parser.add_argument('--auxil_commission', '-ac', help='whether to use auxiliary commission', default=0, type=float)
-    parser.add_argument('--auxil_prediction', '-ap', help='whether to use auxiliary prediction', default=0, type=float)
+    parser.add_argument('--actor_auxil_prediction', '-aap', help='whether to use actor auxiliary prediction', default=0, type=float)
+    parser.add_argument('--critic_auxil_prediction', '-ap', help='whether to use critic_auxiliary prediction', default=0, type=float)
     parser.add_argument('--actor_tau', '-at', help='actor tau constant', default=1e-3, type=float)
     parser.add_argument('--critic_tau', '-ct', help='critic tau constant', default=1e-3, type=float)
     parser.add_argument('--actor_learning_rate', '-al', help='actor learning rate', default=1e-4, type=float)
@@ -532,7 +532,8 @@ if __name__ == '__main__':
     use_batch_norm = args['batch_norm']
     learning_steps = args['learning_steps']
     auxil_commission = args['auxil_commission']
-    auxil_prediction = args['auxil_prediction']
+    actor_auxil_prediction = args['actor_auxil_prediction']
+    critic_auxil_prediction = args['critic_auxil_prediction']
     actor_tau = args['actor_tau']
     critic_tau = args['critic_tau']
     actor_learning_rate = args['actor_learning_rate']
@@ -679,24 +680,28 @@ if __name__ == '__main__':
 
     actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_dim))
     model_save_path = get_model_path(window_length, predictor_type, use_batch_norm, 
-                                     learning_steps, gamma, auxil_commission, auxil_prediction)
+                                     learning_steps, gamma, auxil_commission, actor_auxil_prediction,
+                                     critic_auxil_prediction)
     summary_path = get_result_path(window_length, predictor_type, use_batch_norm,
-                                   learning_steps, gamma, auxil_commission, auxil_prediction)
+                                   learning_steps, gamma, auxil_commission, actor_auxil_prediction,
+                                   critic_auxil_prediction)
     infer_path = get_infer_path(window_length, predictor_type, use_batch_norm,
-                                learning_steps, gamma, auxil_commission, auxil_prediction)
+                                learning_steps, gamma, auxil_commission, actor_auxil_prediction,
+                                critic_auxil_prediction)
     variable_scope = get_variable_scope(window_length, predictor_type, use_batch_norm,
-                                        learning_steps, gamma, auxil_commission, auxil_prediction)
+                                        learning_steps, gamma, auxil_commission, actor_auxil_prediction,
+                                        critic_auxil_prediction)
 
     with tf.variable_scope(variable_scope):
         sess = tf.Session()
         actor = StockActor(sess=sess, state_dim=state_dim, action_dim=action_dim, action_bound=action_bound, 
                            learning_rate=1e-4, tau=actor_tau, batch_size=batch_size,
                            predictor_type=predictor_type, use_batch_norm=use_batch_norm, use_previous=True,
-                           auxiliary_prediction=auxil_prediction)
+                           auxiliary_commission=auxil_commission, actor_auxiliary_prediction=actor_auxil_prediction)
         critic = StockCritic(sess=sess, state_dim=state_dim, action_dim=action_dim, tau=critic_tau,
                              learning_rate=1e-3, num_actor_vars=actor.get_num_trainable_vars(),
                              predictor_type=predictor_type, use_batch_norm=use_batch_norm, use_previous=True,
-                             auxiliary_commission=auxil_commission)
+                             critic_auxiliary_prediction=critic_auxil_prediction)
         ddpg_model = DDPG(train_env, sess, actor, critic, actor_noise, obs_normalizer=obs_normalizer,
                           gamma=gamma, training_episodes=training_episodes, max_rollout_steps=max_rollout_steps,
                           buffer_size=buffer_size, seed=seed, batch_size=batch_size, model_save_path=model_save_path,

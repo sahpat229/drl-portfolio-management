@@ -43,13 +43,14 @@ class ActorNetwork(object):
 
         # Actor Network
         self.inputs, self.out, self.scaled_out, self.portfolio_inputs, \
-            self.loss, self.future_y_inputs = self.create_actor_network(False)
+            self.auxil_loss, self.future_y_inputs = self.create_actor_network(False)
 
         self.network_params = tf.trainable_variables()
 
         # Target Network
         self.target_inputs, self.target_out, self.target_scaled_out, \
-            self.target_portfolio_inputs, self.target_loss, self.target_future_y_inputs = self.create_actor_network(True)
+            self.target_portfolio_inputs, self.target_auxil_loss, self.target_future_y_inputs \
+            = self.create_actor_network(True)
 
         self.target_network_params = tf.trainable_variables()[
                                      len(self.network_params):]
@@ -66,7 +67,7 @@ class ActorNetwork(object):
 
         optimizer = tf.train.AdamOptimizer(self.learning_rate)
 
-        actor_grad_params = [v for v in self.network_params if "auxilFalse" not in v.name]
+        actor_grad_params = [v for v in self.network_params if "actor_auxiliary_predictionFalse" not in v.name]
         # Combine the gradients here
         self.unnormalized_actor_gradients = tf.gradients(
             self.scaled_out, actor_grad_params, -self.action_gradient)
@@ -75,15 +76,13 @@ class ActorNetwork(object):
 
         # Optimization Op
         self.optimize = optimizer.apply_gradients(zip(self.actor_gradients, actor_grad_params))
-
-        print("AUXIL PREDICTION:", self.auxiliary_prediction)
-        if self.auxiliary_prediction > 0:
-            mse_diff = tf.reduce_mean(tf.reduce_sum(tf.square(self.scaled_out - self.portfolio_inputs), axis=-1))
-            self.optimize_comm = tf.train.AdamOptimizer(self.learning_rate).minimize(loss=self.auxiliary_prediction*mse_diff,
-                                                                                     var_list=self.network_params)
-            print("HERE")
-            #self.optimize_comm = tf.train.AdamOptimizer(self.learning_rate).minimize(loss=self.auxiliary_prediction*self.loss,
-            #                                                                         var_list=self.network_params)
+        if self.actor_auxiliary_prediction:
+            self.optimize_prediction = optimizer.minimize(loss=self.auxil_loss,
+                                                          var_list=self.network_params)
+        commission_loss = self.auxiliary_commission* \
+            tf.reduce_mean(tf.reduce_sum(tf.square(self.scaled_out - self.portfolio_inputs), axis=-1))
+        self.optimize_comm = optimizer.minimize(loss=commission_loss,
+                                                var_list=self.network_params)
 
         self.num_trainable_vars = len(self.network_params) + len(self.target_network_params)
 
