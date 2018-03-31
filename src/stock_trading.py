@@ -250,7 +250,7 @@ class StockActor(ActorNetwork):
         nb_classes, window_length = self.s_dim
         assert nb_classes == self.a_dim[0]
         assert window_length > 2, 'This architecture only support window length larger than 2.'
-        inputs = tflearn.input_data(shape=[None] + self.s_dim + [3], name='input')
+        inputs = tflearn.input_data(shape=[None] + self.s_dim + [1], name='input')
 
         portfolio_inputs = None
         portfolio_reshaped = None
@@ -350,7 +350,7 @@ class StockCritic(CriticNetwork):
         CriticNetwork.__init__(self, sess, state_dim, action_dim, learning_rate, tau, num_actor_vars)
 
     def create_critic_network(self, target):
-        inputs = tflearn.input_data(shape=[None] + self.s_dim + [3])
+        inputs = tflearn.input_data(shape=[None] + self.s_dim + [1])
         action = tflearn.input_data(shape=[None] + self.a_dim)
 
         portfolio_inputs = None
@@ -362,6 +362,12 @@ class StockCritic(CriticNetwork):
         net, auxil = stock_predictor_critic(inputs, self.predictor_type, self.use_batch_norm, 
                                             self.use_previous, portfolio_reshaped, auxil_commission,
                                             target)
+
+        loss = 0
+        future_y_inputs = None
+        if self.auxiliary_commission > 0:
+            future_y_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
+            loss = tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs), axis=-1))
 
         # Add the action tensor in the 2nd hidden layer
         # Use two temp layers to get the corresponding weights and biases
@@ -377,9 +383,9 @@ class StockCritic(CriticNetwork):
         # Weights are init to Uniform[-3e-3, 3e-3]
         w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
         out = tflearn.fully_connected(net, 1, weights_init=w_init)
-        return inputs, action, out, portfolio_inputs
+        return inputs, action, out, portfolio_inputs, loss, future_y_inputs
 
-    def train(self, inputs, action, predicted_q_value, portfolio_inputs=None):
+    def train(self, inputs, action, predicted_q_value, portfolio_inputs=None, future_y_inputs=None):
         window_length = self.s_dim[1]
         inputs = inputs[:, :, -window_length:, :]
         if not self.use_previous:
@@ -389,6 +395,15 @@ class StockCritic(CriticNetwork):
                 self.predicted_q_value: predicted_q_value
             })
         else:
+            if self.auxiliary_commission > 0:
+                return self.sess.run([self.out, self.optimize], feed_dict={
+                    self.inputs: inputs,
+                    self.portfolio_inputs: portfolio_inputs,
+                    self.action: action,
+                    self.predicted_q_value: predicted_q_value,
+                    self.future_y_inputs: future_y_inputs
+                })
+
             return self.sess.run([self.out, self.optimize], feed_dict={
                 self.inputs: inputs,
                 self.portfolio_inputs: portfolio_inputs,
@@ -454,10 +469,10 @@ def obs_normalizer(observation):
     if isinstance(observation, tuple):
         observation = observation[0]
     # directly use close/open ratio as feature
-    divisor = observation[:, -1, 3]
-    divisor = divisor[:, None, None]
-    observation = observation[:, :, 1:4] / divisor
-    #observation = observation[:, :, 3:4] / observation[:, :, 0:1]
+    # divisor = observation[:, -1, 3]
+    # divisor = divisor[:, None, None]
+    # observation = observation[:, :, 1:4] / divisor
+    observation = observation[:, :, 3:4] / observation[:, :, 0:1]
     observation = normalize(observation)
     return observation
 
@@ -538,7 +553,7 @@ if __name__ == '__main__':
     history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
     history = history[:, :, :4]
     #history[:, 1:, 0] = history[:, 0:-1, 3] # correct opens
-    target_stocks = abbreviation[0:4]
+    target_stocks = abbreviation
     num_training_time = 1095
 
     # get target history
@@ -547,17 +562,44 @@ if __name__ == '__main__':
         target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
     print("target:", target_history.shape)
 
-    testing_stocks = abbreviation[0:4]
+    testing_stocks = abbreviation
     test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
                                    history.shape[2]))
     for i, stock in enumerate(testing_stocks):
         test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
     print("test:", test_history.shape)
 
+################################## JIANG DATA ##########################################
+
+    # history = np.load('history.pkl')
+    # history = np.transpose(history, [1, 2, 0])
+    # closes = history[:, :, 0]
+    # opens = closes[:, :-1]
+    # closes = closes[:, 1:]
+    # history = np.stack((opens, history[:, 1:, 1], history[:, 1:, 2], closes), axis=-1)
+    # print("sHAPE:", history.shape)
+
+    # num_training_time = int(history.shape[1] * 8 / 9)
+    # stocks = ['' for _ in range(history.shape[0])]
+    # target_stocks = stocks
+    # testing_stocks = stocks
+
+    # # get target history
+    # target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
+    # for i, stock in enumerate(target_stocks):
+    #     target_history[i] = history[i, :num_training_time, :]
+    # print("target:", target_history.shape)
+
+    # test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
+    #                                history.shape[2]))
+    # for i, stock in enumerate(testing_stocks):
+    #     test_history[i] = history[i, num_training_time:, :]
+    # print("test:", test_history.shape)
+
 ################################## DOW JONES ###########################################
     # history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
     # history = history[:, :, :4]
-    # history[:, 1:, 2] = history[:, 0:-1, 3] # correct opens
+    # #history[:, 1:, 2] = history[:, 0:-1, 3] # correct opens
     # target_stocks = abbreviation
     # num_training_time = int(history.shape[1] * 3 / 4)
 

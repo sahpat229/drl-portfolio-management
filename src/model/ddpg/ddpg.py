@@ -232,7 +232,8 @@ class DDPG(BaseModel):
                     predicted_q_value, _ = self.critic.train(inputs=s1_batch, 
                                                              action=a1_batch, 
                                                              predicted_q_value=np.reshape(y_i, (batch_size, 1)),
-                                                             portfolio_inputs=s1w_batch)
+                                                             portfolio_inputs=s1w_batch,
+                                                             future_y_inputs=s1y_batch)
 
                     ep_ave_max_q += np.amax(predicted_q_value)
                     ep_ave_min_q += np.amin(predicted_q_value)

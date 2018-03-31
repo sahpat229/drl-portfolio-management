@@ -109,7 +109,7 @@ class PortfolioSim(object):
     Portfolio management sim.
     Params:
     - cost e.g. 0.0025 is max in Poliniex
-    Based of [Jiang 2017](https://arxiv.org/abs/1706.10059)
+    Based off [Jiang 2017](https://arxiv.org/abs/1706.10059)
     """
 
     def __init__(self, asset_names=list(), steps=730, trading_cost=0.0025, time_cost=0.0):
@@ -312,8 +312,8 @@ class PortfolioEnv(gym.Env):
             0, 1, shape=len(self.src.asset_names) + 1)  # include cash
 
         # get the observation space from the data min and max
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(len(abbreviation), window_length,
-                                                                                 history.shape[-1]))
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(len(abbreviation) + 1, window_length,
+                                                                                 1))
 
     def _step(self, action):
         """

@@ -179,7 +179,7 @@ def read_stock_history_csvs(csv_directory):
     asset_values = []
     for abbrev, filename in zip(abbreviations, filenames):
         data = pd.read_csv(os.path.join(csv_directory, filename))
-        values = np.flip(data.values[:, 1:], axis=0)
+        values = np.flip(data.values[:, 1:-1], axis=0)
         asset_values.append(values)
     asset_values = np.array(asset_values)
     return asset_values, abbreviations
