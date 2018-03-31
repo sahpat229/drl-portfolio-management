@@ -133,7 +133,7 @@ class PortfolioSim(object):
         rho1 = p1 / p0 - 1  # rate of returns
         r1 = np.log((p1 + eps) / (p0 + eps))  # (eq10) log rate of return
         # (eq22) immediate reward is log rate of return scaled by episode length
-        reward = r1 * 1000
+        reward = r1 / self.steps * 1000
 
         # remember for next step
         self.w0 = dw1
@@ -312,7 +312,7 @@ class PortfolioEnv(gym.Env):
             0, 1, shape=len(self.src.asset_names) + 1)  # include cash
 
         # get the observation space from the data min and max
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(len(abbreviation), window_length,
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(len(abbreviation) + 1, window_length,
                                                                                  history.shape[-1]))
 
     def _step(self, action):

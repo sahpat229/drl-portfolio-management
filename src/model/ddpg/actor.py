@@ -63,8 +63,7 @@ class ActorNetwork(object):
              for i in range(len(self.target_network_params))]
 
         # This gradient will be provided by the critic network
-        action_grad_dim = [self.a_dim[0]+1]
-        self.action_gradient = tf.placeholder(tf.float32, [None] + action_grad_dim)
+        self.action_gradient = tf.placeholder(tf.float32, [None] + self.a_dim)
 
         optimizer = tf.train.AdamOptimizer(self.learning_rate)
 

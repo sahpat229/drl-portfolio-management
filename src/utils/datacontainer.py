@@ -440,6 +440,17 @@ class BitcoinTestContainer(Container):
             times.append(int(line['time']))
 
         closes = np.array([self.data['close']])
+        opens = np.array([self.data['open']])
+        lows = np.array([self.data['low']])
+        highs = np.array([self.data['high']])
+
+        self.closes = closes
+        self.opens = opens
+        self.lows = lows
+        self.highs = highs
+
+        [print(arr.shape) for arr in [closes, opens, lows, highs]]
+
         # closes = np.concatenate((np.ones((1, closes.shape[1])), closes),
         #                         axis=0)
         conf = {

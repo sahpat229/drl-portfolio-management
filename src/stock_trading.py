@@ -267,14 +267,16 @@ class StockActor(ActorNetwork):
         """
         assert window_length > 2, 'This architecture only support window length larger than 2.'
         inputs = tflearn.input_data(shape=[None] + self.s_dim + [3], name='input')
+        inputs_sliced = inputs[:, 1:, :, :]
 
         portfolio_inputs = None
         portfolio_reshaped = None
         if self.use_previous:
             portfolio_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
             portfolio_reshaped = tflearn.reshape(portfolio_inputs, new_shape=[-1]+self.a_dim+[1, 1])
+            portfolio_reshaped = portfolio_reshaped[:, 1:, :, :]
 
-        net, auxil = stock_predictor_actor(inputs, self.predictor_type, self.use_batch_norm, 
+        net, auxil = stock_predictor_actor(inputs_sliced, self.predictor_type, self.use_batch_norm, 
                                            self.use_previous, portfolio_reshaped, self.auxiliary_prediction,
                                            target, self.batch_size)
         out = tf.nn.softmax(net)
@@ -296,12 +298,11 @@ class StockActor(ActorNetwork):
         # # Scale output to -action_bound to action_bound
         # scaled_out = tf.multiply(out, self.action_bound)
 
-        loss = None
+        loss = 0
         future_y_inputs = None
         if self.auxiliary_prediction > 0:
-            print("HERE")
             future_y_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
-            loss = tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs), axis=-1))
+            loss = tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs[:, 1:]), axis=-1))
 
         return inputs, out, scaled_out, portfolio_inputs, loss, future_y_inputs
 
@@ -368,17 +369,18 @@ class StockCritic(CriticNetwork):
 
     def create_critic_network(self, target):
         inputs = tflearn.input_data(shape=[None] + self.s_dim + [3])
+        inputs_sliced = inputs[:, 1:, :, :]
 
-        action_dim = [self.a_dim[0]+1]
-        action = tflearn.input_data(shape=[None] + action_dim)
+        action = tflearn.input_data(shape=[None] + self.a_dim)
 
         portfolio_inputs = None
         portfolio_reshaped = None
         if self.use_previous:
             portfolio_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
             portfolio_reshaped = tflearn.reshape(portfolio_inputs, new_shape=[-1]+self.a_dim+[1, 1])
+            portfolio_reshaped = portfolio_reshaped[:, 1:, :, :]
 
-        net, auxil = stock_predictor_critic(inputs, self.predictor_type, self.use_batch_norm, 
+        net, auxil = stock_predictor_critic(inputs_sliced, self.predictor_type, self.use_batch_norm, 
                                             self.use_previous, portfolio_reshaped, auxil_commission,
                                             target, batch_size)
 
@@ -402,7 +404,7 @@ class StockCritic(CriticNetwork):
         if self.auxiliary_commission > 0:
             print("HERE")
             future_y_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
-            loss = tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs), axis=-1))
+            loss = tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs[:, 1:]), axis=-1))
 
         return inputs, action, out, portfolio_inputs, loss, future_y_inputs
 
@@ -493,9 +495,12 @@ def obs_normalizer(observation):
     # directly use close/open ratio as feature
     divisor = observation[:, -1, 3]
     divisor = divisor[:, None, None]
+
+    #print("OBS BEFORE:", observation, "DIVISOR:", divisor)
     observation = observation[:, :, 1:4] / divisor
+    #print("OBS AFTER:", observation)
     #observation = observation[:, :, 3:4] / observation[:, :, 0:1]
-    observation = normalize(observation)
+    #observation = normalize(observation)
     return observation
 
 
@@ -593,30 +598,30 @@ if __name__ == '__main__':
 
 ################################## JIANG DATA ##########################################
 
-    history = np.load('history.pkl')
-    history = np.transpose(history, [1, 2, 0])
-    closes = history[:, :, 0]
-    opens = closes[:, :-1]
-    closes = closes[:, 1:]
-    history = np.stack((opens, history[:, 1:, 1], history[:, 1:, 2], closes), axis=-1)
-    print("sHAPE:", history.shape)
+    # history = np.load('history.pkl')
+    # history = np.transpose(history, [1, 2, 0])
+    # closes = history[:, :, 0]
+    # opens = closes[:, :-1]
+    # closes = closes[:, 1:]
+    # history = np.stack((opens, history[:, 1:, 1], history[:, 1:, 2], closes), axis=-1)
+    # print("sHAPE:", history.shape)
 
-    num_training_time = int(history.shape[1] * 8 / 9)
-    stocks = ['' for _ in range(history.shape[0])]
-    target_stocks = stocks
-    testing_stocks = stocks
+    # num_training_time = int(history.shape[1] * 8 / 9)
+    # stocks = ['' for _ in range(history.shape[0])]
+    # target_stocks = stocks
+    # testing_stocks = stocks
 
-    # get target history
-    target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
-    for i, stock in enumerate(target_stocks):
-        target_history[i] = history[i, :num_training_time, :]
-    print("target:", target_history.shape)
+    # # get target history
+    # target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
+    # for i, stock in enumerate(target_stocks):
+    #     target_history[i] = history[i, :num_training_time, :]
+    # print("target:", target_history.shape)
 
-    test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
-                                   history.shape[2]))
-    for i, stock in enumerate(testing_stocks):
-        test_history[i] = history[i, num_training_time:, :]
-    print("test:", test_history.shape)
+    # test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
+    #                                history.shape[2]))
+    # for i, stock in enumerate(testing_stocks):
+    #     test_history[i] = history[i, num_training_time:, :]
+    # print("test:", test_history.shape)
 
 ################################## DOW JONES ###########################################
     # history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
@@ -661,23 +666,25 @@ if __name__ == '__main__':
 
     # setup environment
 
-    # dc = utils.datacontainer.TestContainer(shape='ar', num_assets=4, num_samples=20000, alpha=0.9, kappa=3)
-    # #dc = utils.datacontainer.BitcoinTestContainer(csv_file_name='./datasets/output.csv')
-    # target_history = dc.train_close
-    # num_assets = target_history.shape[0]
-    # opens = target_history[:, :-1]
-    # target_history = target_history[:, 1:]
-    # filler = np.zeros((num_assets, target_history.shape[1]))
-    # target_history = np.stack((opens, filler, filler, target_history), axis=-1)
-    # target_stocks = ['' for _ in range(4)]
+    #dc = utils.datacontainer.TestContainer(shape='ar', num_assets=4, num_samples=20000, alpha=0.9, kappa=3)
+    dc = utils.datacontainer.BitcoinTestContainer(csv_file_name='./datasets/output.csv')
+    num_assets = dc.closes.shape[0]
+    opens = dc.closes[:, :-1]
+    closes = dc.closes[:, 1:]
+    highs = dc.highs[:, 1:]
+    lows = dc.lows[:, 1:]
 
-    # test_history = dc.test_close
-    # num_assets = test_history.shape[0]
-    # opens = test_history[:, :-1]
-    # test_history = test_history[:, 1:]
-    # filler = np.zeros((num_assets, test_history.shape[1]))
-    # test_history = np.stack((opens, filler, filler, test_history), axis=-1)
-    # testing_stocks = target_stocks
+    [print(arr.shape) for arr in [opens, closes, highs, lows]]
+
+    history = np.stack((opens, lows, highs, closes), axis=-1)
+    history = history[:, 45000:, :]
+
+    split_level = int(history.shape[1] * 7 / 9)
+    target_history = history[:, :split_level, :]
+    test_history = history[:, split_level:, :]
+
+    target_stocks = ['BTC']
+    testing_stocks = ['BTC']
 
 ###############################################################################################
     train_env = PortfolioEnv(target_history, 
@@ -686,21 +693,20 @@ if __name__ == '__main__':
                              window_length=window_length)
     infer_train_env = PortfolioEnv(target_history, 
                                    target_stocks, 
-                                   steps=target_history.shape[1]-window_length-learning_steps,
+                                   steps=target_history.shape[1]-window_length-learning_steps-1,
                                    window_length=window_length)
     infer_test_env = PortfolioEnv(test_history, 
                                   testing_stocks, 
-                                  steps=test_history.shape[1]-window_length-learning_steps, 
+                                  steps=test_history.shape[1]-window_length-learning_steps-1, 
                                   window_length=window_length)
     infer_train_env.reset()
     infer_test_env.reset()
-    nb_classes = len(target_stocks)
+    nb_classes = len(target_stocks) + 1
 
     action_dim = [nb_classes]
     state_dim = [nb_classes, window_length]
 
-    actor_noise_dim = [nb_classes + 1]
-    actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(actor_noise_dim))
+    actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_dim))
     model_save_path = get_model_path(window_length, predictor_type, use_batch_norm, 
                                      learning_steps, gamma, auxil_commission, auxil_prediction)
     summary_path = get_result_path(window_length, predictor_type, use_batch_norm,
