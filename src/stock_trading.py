@@ -116,7 +116,7 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
             auxiliary_prediction = None
             if actor_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-                auxiliary_prediction = tflearn.flatten(auxil)
+                auxiliary_prediction = tflearn.flatten(auxiliary_prediction)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -155,7 +155,7 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
             auxiliary_prediction = None
             if actor_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-                auxiliary_prediction = tflearn.flatten(auxil)
+                auxiliary_prediction = tflearn.flatten(auxiliary_prediction)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -191,7 +191,7 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
             auxiliary_prediction = None
             if critic_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-                auxiliary_prediction = tflearn.flatten(auxil)
+                auxiliary_prediction = tflearn.flatten(auxiliary_prediction)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -228,7 +228,7 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
             auxiliary_prediction = None
             if critic_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-                auxiliary_prediction = tflearn.flatten(auxil)
+                auxiliary_prediction = tflearn.flatten(auxiliary_prediction)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -294,15 +294,28 @@ class StockActor(ActorNetwork):
                 self.action_gradient: a_gradient
             })
         else:
-            if self.actor_auxiliary_prediction > 0:
+            if self.actor_auxiliary_prediction > 0 and self.auxiliary_commission:
                 self.sess.run([self.optimize, self.optimize_comm, self.optimize_prediction], feed_dict={
                     self.inputs: inputs,
                     self.portfolio_inputs: portfolio_inputs,
                     self.action_gradient: a_gradient,
                     self.future_y_inputs: future_y_inputs
                 })
-            else:                
+            elif self.actor_auxiliary_prediction > 0:
+                self.sess.run([self.optimize, self.optimize_prediction], feed_dict={
+                    self.inputs: inputs,
+                    self.portfolio_inputs: portfolio_inputs,
+                    self.action_gradient: a_gradient,
+                    self.future_y_inputs: future_y_inputs
+                })
+            elif self.auxiliary_commission > 0:
                 self.sess.run([self.optimize, self.optimize_comm], feed_dict={
+                    self.inputs: inputs,
+                    self.portfolio_inputs: portfolio_inputs,
+                    self.action_gradient: a_gradient
+                })
+            else:                
+                self.sess.run([self.optimize], feed_dict={
                     self.inputs: inputs,
                     self.portfolio_inputs: portfolio_inputs,
                     self.action_gradient: a_gradient
@@ -709,3 +722,4 @@ if __name__ == '__main__':
                           infer_test_env=infer_test_env, learning_steps=learning_steps)
         ddpg_model.initialize(load_weights=load_weights, verbose=False)
         ddpg_model.train()
+

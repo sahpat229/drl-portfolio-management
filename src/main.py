@@ -16,8 +16,8 @@ from utils.data import read_stock_history, normalize
 
 history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
 history = history[:, :, :4]
-history[:, 1:, 0] = history[:, 0:-1, 3] # correct opens
-target_stocks = abbreviation[:4]
+
+target_stocks = abbreviation
 num_training_time = 1095
 nb_classes = len(target_stocks) + 1
 
@@ -27,7 +27,7 @@ for i, stock in enumerate(target_stocks):
     target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
 print(target_history.shape)
 
-testing_stocks = abbreviation[:4]
+testing_stocks = abbreviation
 test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
                                history.shape[2]))
 for i, stock in enumerate(testing_stocks):
