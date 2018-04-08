@@ -552,7 +552,7 @@ if __name__ == '__main__':
 
     history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
     history = history[:, :, :4]
-    #history[:, 1:, 0] = history[:, 0:-1, 3] # correct opens
+    history[:, 1:, 0] = history[:, 0:-1, 3] # correct opens
     target_stocks = abbreviation
     num_training_time = 1095
 
@@ -660,15 +660,15 @@ if __name__ == '__main__':
 ###############################################################################################
     train_env = PortfolioEnv(target_history, 
                              target_stocks, 
-                             steps=min(max_rollout_steps, target_history.shape[1]-window_length-learning_steps), 
+                             steps=min(max_rollout_steps, target_history.shape[1]-window_length-learning_steps-1), 
                              window_length=window_length)
     infer_train_env = PortfolioEnv(target_history, 
                                    target_stocks, 
-                                   steps=target_history.shape[1]-window_length-learning_steps,
+                                   steps=target_history.shape[1]-window_length-learning_steps-1,
                                    window_length=window_length)
     infer_test_env = PortfolioEnv(test_history, 
                                   testing_stocks, 
-                                  steps=test_history.shape[1]-window_length-learning_steps, 
+                                  steps=test_history.shape[1]-window_length-learning_steps-1, 
                                   window_length=window_length)
     infer_train_env.reset()
     infer_test_env.reset()
