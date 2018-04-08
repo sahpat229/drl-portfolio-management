@@ -78,13 +78,13 @@ class DDPG(BaseModel):
 
         """
 
-        if not os.path.exists(self.model_save_path):
+        if (self.model_save_path is not None) and (not os.path.exists(self.model_save_path)):
             os.makedirs(self.model_save_path, exist_ok=True)
-        if not os.path.exists(self.summary_path):
+        if (self.summary_path is not None) and (not os.path.exists(self.summary_path)):
             os.makedirs(self.summary_path, exist_ok=True)
-        if not os.path.exists(os.path.join(self.infer_path, 'test/')):
+        if (self.infer_path is not None) and (not os.path.exists(os.path.join(self.infer_path, 'test/'))):
             os.makedirs(os.path.join(self.infer_path, 'test/'), exist_ok=True)
-        if not os.path.exists(os.path.join(self.infer_path, 'train/')):
+        if (self.infer_path is not None) and (not os.path.exists(os.path.join(self.infer_path, 'train/'))):
             os.makedirs(os.path.join(self.infer_path, 'train/'), exist_ok=True)
 
         if load_weights:
@@ -93,6 +93,7 @@ class DDPG(BaseModel):
                 param_dict = {}
                 saver = tf.train.Saver()
                 latest_checkpoint = tf.train.latest_checkpoint(self.model_save_path)
+                print("LOADING FROM:", self.model_save_path)
                 self.start_episode = int(latest_checkpoint.split('-')[1]) + 1
                 saver.restore(self.sess, latest_checkpoint)
                 for var in variables:

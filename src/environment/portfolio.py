@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import gym
 import gym.spaces
 
-from utils.data import date_to_index, index_to_date
+from utils.data import date_to_index, index_to_date, index_to_date_offset
 from pgportfolio.tools.configprocess import load_config
 
 eps = 1e-8
@@ -89,6 +89,8 @@ class DataGenerator(object):
 
         # get data for this episode, each episode might be different.
         if self.start_date is None:
+            print("LOW:", self.window_length)
+            print("HIGH:", self._data.shape[1] - self.steps)
             self.idx = np.random.randint(
                 low=self.window_length, high=self._data.shape[1] - self.steps)
         else:
@@ -290,7 +292,7 @@ class PortfolioEnv(gym.Env):
             start_idx - The number of days from '2012-08-13' of the dataset
             sample_start_date - The start date sampling from the history
         """
-        plt.rcParams["figure.figsize"] = (10,10)
+        plt.rcParams["figure.figsize"] = (15,8)
         np.random.seed(seed)
         self.window_length = window_length
         self.num_stocks = history.shape[0]
@@ -437,10 +439,12 @@ class MultiActionPortfolioEnv(PortfolioEnv):
                  window_length=50,
                  start_idx=0,
                  sample_start_date=None,
+                 offset=1095
                  ):
         super(MultiActionPortfolioEnv, self).__init__(history, abbreviation, steps, trading_cost, time_cost, window_length,
                               start_idx, sample_start_date)
         self.model_names = model_names
+        self.offset = offset
         # need to create each simulator for each model
         self.sim = [PortfolioSim(
             asset_names=abbreviation,
@@ -485,27 +489,32 @@ class MultiActionPortfolioEnv(PortfolioEnv):
 
         rewards = np.empty(shape=(weights.shape[0]))
         info = {}
+        rate_of_returns = {}
         dones = np.empty(shape=(weights.shape[0]), dtype=bool)
         for i in range(weights.shape[0]):
             reward, current_info, done2 = self.sim[i]._step(weights[i], y1)
             rewards[i] = reward
             info[self.model_names[i]] = current_info['portfolio_value']
             info['return'] = current_info['return']
+            rate_of_returns[self.model_names[i]] = current_info['rate_of_return']
             dones[i] = done2
 
         # calculate return for buy and hold a bit of each asset
         info['market_value'] = np.cumprod([inf["return"] for inf in self.infos + [info]])[-1]
         # add dates
-        info['date'] = index_to_date(self.start_idx + self.src.idx + self.src.step)
+        info['date'] = index_to_date_offset(self.start_idx + self.src.idx + self.src.step, self.offset)
         info['steps'] = self.src.step
         info['next_obs'] = ground_truth_obs
 
         self.infos.append(info)
+        self.rate_of_returns.append(rate_of_returns)
 
+        observation = {'obs': observation, 'weights': np.array([self.sim[i].w0 for i in range(weights.shape[0])])}
         return observation, rewards, np.all(dones) or done1, info
 
     def _reset(self):
         self.infos = []
+        self.rate_of_returns = []
         for sim in self.sim:
             sim.reset()
         observation, ground_truth_obs = self.src.reset()
@@ -515,13 +524,31 @@ class MultiActionPortfolioEnv(PortfolioEnv):
         ground_truth_obs = np.concatenate((cash_ground_truth, ground_truth_obs), axis=0)
         info = {}
         info['next_obs'] = ground_truth_obs
+
+        observation = {'obs': observation, 'weights': np.array([sim.w0 for sim in self.sim])}
         return observation, info
 
+    def make_df(self):
+        self.df_info = pd.DataFrame(self.infos)
+
     def plot(self):
-        df_info = pd.DataFrame(self.infos)
+        df_info = self.df_info
         df_info.index = df_info["date"]
         fig = plt.gcf()
         title = 'Trading Performance of Various Models'
         # for model_name in self.model_names:
         #     df_info[[model_name]].plot(title=title, fig=fig, rot=30)
         df_info[self.model_names + ['market_value']].plot(title=title, fig=fig, rot=30)
+        plt.ylabel('Cumulative Wealth')
+        plt.grid()
+
+    def stats(self):
+        stats = {}
+        for model_name in self.model_names:
+            dic = {}
+            dic['fAPV'] = self.infos[-1][model_name]
+            model_returns = [rate_of_return[model_name] for rate_of_return in self.rate_of_returns]
+            dic['sharpe'] = sharpe(np.array(model_returns))
+            dic['mdd'] = max_drawdown(np.array(model_returns)+1)
+            stats[model_name] = dic
+        return stats

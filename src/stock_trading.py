@@ -502,12 +502,14 @@ def test_model_multiple(env, models):
     observation, info = env.reset()
     done = False
     while not done:
+        observation, weights = observation['obs'], observation['weights']
         actions = []
-        for model in models:
-            actions.append(model.predict_single(observation))
+        for i, model in enumerate(models):
+            model_obs = {'obs': observation, 'weights': weights[i]}
+            actions.append(model.predict_single(model_obs))
         actions = np.array(actions)
         observation, _, done, info = env.step(actions)
-    env.render()
+    # env.render()
 
 
 if __name__ == '__main__':
@@ -674,15 +676,15 @@ if __name__ == '__main__':
 ###############################################################################################
     train_env = PortfolioEnv(target_history, 
                              target_stocks, 
-                             steps=min(max_rollout_steps, target_history.shape[1]-window_length-learning_steps), 
+                             sssssssteps=min(max_rollout_steps, target_history.shape[1]-window_length-learning_steps-1),
                              window_length=window_length)
     infer_train_env = PortfolioEnv(target_history, 
                                    target_stocks, 
-                                   steps=target_history.shape[1]-window_length-learning_steps,
+                                   steps=target_history.shape[1]-window_length-learning_steps-1,
                                    window_length=window_length)
     infer_test_env = PortfolioEnv(test_history, 
                                   testing_stocks, 
-                                  steps=test_history.shape[1]-window_length-learning_steps, 
+                                  steps=test_history.shape[1]-window_length-learning_steps-1, 
                                   window_length=window_length)
     infer_train_env.reset()
     infer_test_env.reset()

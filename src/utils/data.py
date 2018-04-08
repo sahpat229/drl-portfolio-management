@@ -56,7 +56,7 @@ def create_dataset(filepath):
     abbreviation = []
     with open(filepath, 'r') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
-        first_row = reader.next()
+        first_row = next(reader)
         current_company = None
         current_company_index = -1
         current_date = None
@@ -195,6 +195,10 @@ def index_to_date(index):
 
     """
     return (start_datetime + datetime.timedelta(index)).strftime(date_format)
+
+def index_to_date_offset(index, offset):
+
+    return (start_datetime + datetime.timedelta(index + offset)).strftime(date_format) 
 
 
 def date_to_index(date_string):

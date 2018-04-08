@@ -48,14 +48,19 @@ def plot_backtest(config, algos, labels=None, history=None, window_size=50, trad
     @:param algos: list of strings representing the name of algorithms or index of pgportfolio result
     """
     results = []
+    dic_results = {}
     for i, algo in enumerate(algos):
         if algo.isdigit():
             results.append(np.cumprod(_load_from_summary(algo, config)))
             logging.info("load index "+algo+" from csv file")
         else:
             logging.info("start executing "+algo)
-            results.append(np.cumprod(execute_backtest(algo, config, history, window_size, trading_commission)))
+            values = execute_backtest(algo, config, history, window_size, trading_commission)
+            results.append(np.cumprod(values))
             logging.info("finish executing "+algo)
+            dic_results[algo] = np.cumprod(values)
+
+    np.save('algos.npy', dic_results)
 
     start, end = _extract_test(config)
     timestamps = np.linspace(start, end, len(results[0]))
