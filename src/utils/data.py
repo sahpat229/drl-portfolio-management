@@ -41,6 +41,7 @@ def normalize(x):
     """
     return (x - 1) * 100
 
+
 def create_dataset(filepath):
     """ create the raw dataset from all_stock_5yr.csv. The data is Open,High,Low,Close,Volume
 
@@ -56,7 +57,7 @@ def create_dataset(filepath):
     abbreviation = []
     with open(filepath, 'r') as csvfile:
         reader = csv.reader(csvfile, delimiter=',')
-        first_row = reader.next()
+        first_row = next(reader)
         current_company = None
         current_company_index = -1
         current_date = None
@@ -170,8 +171,9 @@ def read_stock_history(filepath='datasets/stocks_history.h5'):
         abbreviation = [abbr.decode('utf-8') for abbr in abbreviation]
     return history, abbreviation
 
+
 def read_stock_history_csvs(csv_directory):
-    """ Read data from the csv path 
+    """ Read data from the csv path
     """
     filenames = os.listdir(csv_directory)
     filenames = [filename for filename in filenames if "daily" in filename]
@@ -196,9 +198,10 @@ def index_to_date(index):
     """
     return (start_datetime + datetime.timedelta(index)).strftime(date_format)
 
-def index_to_date_offset(index, offset):
 
+def index_to_date_offset(index, offset):
     return (start_datetime + datetime.timedelta(index + offset)).strftime(date_format)
+
 
 def date_to_index(date_string):
     """
@@ -263,7 +266,7 @@ def create_imitation_dataset(history, window_length, training_data_ratio=0.8, is
     Ys = []
     for i in range(window_length, T):
         obs = close_open_ratio[:, i - window_length:i]
-        label = np.argmax(close_open_ratio[:, i:i+1], axis=0)
+        label = np.argmax(close_open_ratio[:, i:i + 1], axis=0)
         Xs.append(obs)
         Ys.append(label)
     Xs = np.stack(Xs)
