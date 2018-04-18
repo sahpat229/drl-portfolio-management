@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import gym
 import gym.spaces
 
-from utils.data import date_to_index, index_to_date
+from utils.data import date_to_index, index_to_date, index_to_date_offset
 from pgportfolio.tools.configprocess import load_config
 
 eps = 1e-8
@@ -101,7 +101,7 @@ class DataGenerator(object):
         # apply augmentation?
         self.data = data
         return self.data[:, self.step:self.step + self.window_length, :].copy(), \
-               self.data[:, self.step + self.window_length:self.step + self.window_length + 1, :].copy()
+            self.data[:, self.step + self.window_length:self.step + self.window_length + 1, :].copy()
 
 
 class PortfolioSim(object):
@@ -119,11 +119,11 @@ class PortfolioSim(object):
         self.steps = steps
 
     def _step(self, w1, y1):
-        w0 = self.w0 #old_weights'
-        p0 = self.p0 #p'
+        w0 = self.w0  # old_weights'
+        p0 = self.p0  # p'
 
         c1 = self.cost * (np.abs(w0[1:] - w1[1:])).sum()
-        p1 = p0 * (1 - c1) * np.dot(y1, w1) # p_(t+1)''
+        p1 = p0 * (1 - c1) * np.dot(y1, w1)  # p_(t+1)''
 
         dw1 = (y1 * w1) / (np.dot(y1, w1) + eps)  # (eq7) weights evolve into
 
@@ -151,7 +151,7 @@ class PortfolioSim(object):
             "rate_of_return": rho1,
             "weights_mean": w1.mean(),
             "weights_std": w1.std(),
-            "cost": p0*c1,
+            "cost": p0 * c1,
             "weights": w1,
             "evolved_weights": dw1
         }
@@ -290,7 +290,7 @@ class PortfolioEnv(gym.Env):
             start_idx - The number of days from '2012-08-13' of the dataset
             sample_start_date - The start date sampling from the history
         """
-        plt.rcParams["figure.figsize"] = (10,10)
+        plt.rcParams["figure.figsize"] = (10, 10)
         np.random.seed(seed)
         self.window_length = window_length
         self.num_stocks = history.shape[0]
@@ -365,7 +365,7 @@ class PortfolioEnv(gym.Env):
 
         self.infos.append(info)
 
-        observation = {'obs': observation, 'weights':  self.sim.w0}
+        observation = {'obs': observation, 'weights': self.sim.w0}
 
         return observation, reward, done1 or done2, info
 
@@ -392,7 +392,7 @@ class PortfolioEnv(gym.Env):
             self.plot()
 
     def plot(self):
-        #print("HERE")
+        # print("HERE")
         # show a plot of portfolio vs mean market performance
         fig, axes = plt.subplots(nrows=4, ncols=1)
         df_info = pd.DataFrame(self.infos)
@@ -420,11 +420,11 @@ class PortfolioEnv(gym.Env):
         axes[3].plot(costs)
         plt.show()
 
-
     def plot_costs(self):
         costs = [info["cost"] for info in self.infos]
         costs = np.array(costs)
         plt.plot(costs)
+
 
 class MultiActionPortfolioEnv(PortfolioEnv):
     def __init__(self,
@@ -437,10 +437,12 @@ class MultiActionPortfolioEnv(PortfolioEnv):
                  window_length=50,
                  start_idx=0,
                  sample_start_date=None,
+                 offset=0
                  ):
         super(MultiActionPortfolioEnv, self).__init__(history, abbreviation, steps, trading_cost, time_cost, window_length,
-                              start_idx, sample_start_date)
+                                                      start_idx, sample_start_date)
         self.model_names = model_names
+        self.offset = 1095
         # need to create each simulator for each model
         self.sim = [PortfolioSim(
             asset_names=abbreviation,
@@ -496,7 +498,7 @@ class MultiActionPortfolioEnv(PortfolioEnv):
         # calculate return for buy and hold a bit of each asset
         info['market_value'] = np.cumprod([inf["return"] for inf in self.infos + [info]])[-1]
         # add dates
-        info['date'] = index_to_date(self.start_idx + self.src.idx + self.src.step)
+        info['date'] = index_to_date_offset(self.start_idx + self.src.idx + self.src.step, self.offset)
         info['steps'] = self.src.step
         info['next_obs'] = ground_truth_obs
 

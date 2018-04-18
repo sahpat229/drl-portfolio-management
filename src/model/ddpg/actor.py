@@ -53,7 +53,7 @@ class ActorNetwork(object):
             = self.create_actor_network(True)
 
         self.target_network_params = tf.trainable_variables()[
-                                     len(self.network_params):]
+            len(self.network_params):]
 
         # Op for periodically updating target network with online network
         # weights
@@ -79,7 +79,7 @@ class ActorNetwork(object):
         if self.actor_auxiliary_prediction:
             self.optimize_prediction = optimizer.minimize(loss=self.auxil_loss,
                                                           var_list=self.network_params)
-        commission_loss = self.auxiliary_commission* \
+        commission_loss = self.auxiliary_commission * \
             tf.reduce_mean(tf.reduce_sum(tf.square(self.scaled_out - self.portfolio_inputs), axis=-1))
         self.optimize_comm = optimizer.minimize(loss=commission_loss,
                                                 var_list=self.network_params)

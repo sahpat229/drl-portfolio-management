@@ -196,6 +196,9 @@ def index_to_date(index):
     """
     return (start_datetime + datetime.timedelta(index)).strftime(date_format)
 
+def index_to_date_offset(index, offset):
+
+    return (start_datetime + datetime.timedelta(index + offset)).strftime(date_format)
 
 def date_to_index(date_string):
     """

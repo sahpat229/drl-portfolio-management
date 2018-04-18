@@ -117,7 +117,7 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
             auxiliary_prediction = None
             if actor_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-                auxiliary_prediction = tflearn.flatten(auxil)
+                auxiliary_prediction = tflearn.flatten(auxiliary_prediction)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -156,7 +156,7 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
             auxiliary_prediction = None
             if actor_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-                auxiliary_prediction = tflearn.flatten(auxil)
+                auxiliary_prediction = tflearn.flatten(auxiliary_prediction)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -193,7 +193,7 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
             auxiliary_prediction = None
             if critic_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-                auxiliary_prediction = tflearn.flatten(auxil)
+                auxiliary_prediction = tflearn.flatten(auxiliary_prediction)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -230,7 +230,7 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
             auxiliary_prediction = None
             if critic_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
-                auxiliary_prediction = tflearn.flatten(auxil)
+                auxiliary_prediction = tflearn.flatten(auxiliary_prediction)
 
         if use_previous:
             net = tflearn.layers.merge_ops.merge([previous_input, net], 'concat', axis=-1)
@@ -554,24 +554,24 @@ if __name__ == '__main__':
 
 ##################################### NASDAQ ##########################################
 
-    history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
-    history = history[:, :, :4]
-    # history[:, 1:, 0] = history[:, 0:-1, 3]  # correct opens
-    target_stocks = abbreviation
-    num_training_time = 1095
+    # history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
+    # history = history[:, :, :4]
+    # # history[:, 1:, 0] = history[:, 0:-1, 3]  # correct opens
+    # target_stocks = abbreviation
+    # num_training_time = 1095
 
-    # get target history
-    target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
-    for i, stock in enumerate(target_stocks):
-        target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
-    print("target:", target_history.shape)
+    # # get target history
+    # target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
+    # for i, stock in enumerate(target_stocks):
+    #     target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
+    # print("target:", target_history.shape)
 
-    testing_stocks = abbreviation
-    test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
-                                   history.shape[2]))
-    for i, stock in enumerate(testing_stocks):
-        test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
-    print("test:", test_history.shape)
+    # testing_stocks = abbreviation
+    # test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
+    #                                history.shape[2]))
+    # for i, stock in enumerate(testing_stocks):
+    #     test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
+    # print("test:", test_history.shape)
 
 ################################## JIANG DATA ##########################################
 
