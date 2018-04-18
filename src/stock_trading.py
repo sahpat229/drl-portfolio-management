@@ -30,13 +30,13 @@ def get_model_path(window_length, predictor_type, use_batch_norm, learning_steps
     else:
         batch_norm_str = 'no_batch_norm'
 
-    learning_steps_str = 'learning_steps_'+str(learning_steps)
-    gamma_str = 'gamma_'+str(gamma)
+    learning_steps_str = 'learning_steps_' + str(learning_steps)
+    gamma_str = 'gamma_' + str(gamma)
     auxiliary_str = 'ac_{}_aap_{}_cap_{}'.format(str(float(auxiliary_commission)),
                                                  str(float(actor_auxiliary_prediction)),
                                                  str(float(critic_auxiliary_prediction)))
 
-    #return 'weights/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
+    # return 'weights/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
 
     return 'weights/{}/window_{}/{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
                                                       learning_steps_str, gamma_str, auxiliary_str)
@@ -49,30 +49,31 @@ def get_result_path(window_length, predictor_type, use_batch_norm, learning_step
     else:
         batch_norm_str = 'no_batch_norm'
 
-    learning_steps_str = 'learning_steps_'+str(learning_steps)
-    gamma_str = 'gamma_'+str(gamma)
+    learning_steps_str = 'learning_steps_' + str(learning_steps)
+    gamma_str = 'gamma_' + str(gamma)
     auxiliary_str = 'ac_{}_aap_{}_cap_{}'.format(str(float(auxiliary_commission)),
                                                  str(float(actor_auxiliary_prediction)),
                                                  str(float(critic_auxiliary_prediction)))
 
-    #return 'results/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
+    # return 'results/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
 
     return 'results/{}/window_{}/{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
                                                       learning_steps_str, gamma_str, auxiliary_str)
 
+
 def get_infer_path(window_length, predictor_type, use_batch_norm, learning_steps=0, gamma=0.5,
-                    auxiliary_commission=0, actor_auxiliary_prediction=0, critic_auxiliary_prediction=0):
+                   auxiliary_commission=0, actor_auxiliary_prediction=0, critic_auxiliary_prediction=0):
     if use_batch_norm:
         batch_norm_str = 'batch_norm'
     else:
         batch_norm_str = 'no_batch_norm'
 
-    learning_steps_str = 'learning_steps_'+str(learning_steps)
-    gamma_str = 'gamma_'+str(gamma)
+    learning_steps_str = 'learning_steps_' + str(learning_steps)
+    gamma_str = 'gamma_' + str(gamma)
     auxiliary_str = 'ac_{}_aap_{}_cap_{}'.format(str(float(auxiliary_commission)),
                                                  str(float(actor_auxiliary_prediction)),
                                                  str(float(critic_auxiliary_prediction)))
-    #return 'results/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
+    # return 'results/stock/{}/window_{}/{}'.format(predictor_type, window_length, batch_norm_str)
 
     return 'infer/{}/window_{}/{}/{}/{}/{}/'.format(predictor_type, window_length, batch_norm_str,
                                                     learning_steps_str, gamma_str, auxiliary_str)
@@ -85,12 +86,12 @@ def get_variable_scope(window_length, predictor_type, use_batch_norm, learning_s
     else:
         batch_norm_str = 'no_batch_norm'
 
-    learning_steps_str = 'learning_steps_'+str(learning_steps)
-    gamma_str = 'gamma_'+str(gamma)
+    learning_steps_str = 'learning_steps_' + str(learning_steps)
+    gamma_str = 'gamma_' + str(gamma)
     auxiliary_str = 'ac_{}_aap_{}_cap_{}'.format(str(float(auxiliary_commission)),
                                                  str(float(actor_auxiliary_prediction)),
                                                  str(float(critic_auxiliary_prediction)))
-    #return '{}_window_{}_{}'.format(predictor_type, window_length, batch_norm_str)
+    # return '{}_window_{}_{}'.format(predictor_type, window_length, batch_norm_str)
 
     return '{}_window_{}_{}_{}_{}_{}'.format(predictor_type, window_length, batch_norm_str,
                                              learning_steps_str, gamma_str, auxiliary_str)
@@ -112,7 +113,7 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
         if DEBUG:
             print('After conv2d:', net.shape)
 
-        with tf.variable_scope("actor_auxiliary_prediction"+str(target)):
+        with tf.variable_scope("actor_auxiliary_prediction" + str(target)):
             auxiliary_prediction = None
             if actor_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
@@ -143,7 +144,7 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
             result = tflearn.layers.lstm(net[:, :, :, i],
                                          hidden_dim,
                                          dropout=0.5,
-                                         scope="lstm_actor"+str(target),
+                                         scope="lstm_actor" + str(target),
                                          reuse=reuse)
             resultlist.append(result)
         net = tf.stack(resultlist)
@@ -151,7 +152,7 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
         print("STACKED Shape:", net.shape)
         net = tf.reshape(net, [-1, int(num_stocks), 1, hidden_dim])
 
-        with tf.variable_scope("actor_auxiliary_prediction"+str(target)):
+        with tf.variable_scope("actor_auxiliary_prediction" + str(target)):
             auxiliary_prediction = None
             if actor_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
@@ -171,6 +172,7 @@ def stock_predictor_actor(inputs, predictor_type, use_batch_norm, use_previous, 
 
     return net, auxiliary_prediction
 
+
 def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous, previous_input,
                            critic_auxiliary_prediction, target):
     window_length = inputs.get_shape()[2]
@@ -187,7 +189,7 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
         if DEBUG:
             print('After conv2d:', net.shape)
 
-        with tf.variable_scope("critic_auxiliary_prediction"+str(target)):
+        with tf.variable_scope("critic_auxiliary_prediction" + str(target)):
             auxiliary_prediction = None
             if critic_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
@@ -217,14 +219,14 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
             result = tflearn.layers.lstm(net[:, :, :, i],
                                          hidden_dim,
                                          dropout=0.5,
-                                         scope="lstm_critic"+str(target),
+                                         scope="lstm_critic" + str(target),
                                          reuse=reuse)
             resultlist.append(result)
         net = tf.stack(resultlist)
         net = tf.transpose(net, [1, 0, 2])
         net = tf.reshape(net, [-1, int(num_stocks), 1, hidden_dim])
 
-        with tf.variable_scope("critic_auxiliary_prediction"+str(target)):
+        with tf.variable_scope("critic_auxiliary_prediction" + str(target)):
             auxiliary_prediction = None
             if critic_auxiliary_prediction > 0:
                 auxiliary_prediction = tflearn.conv_2d(net, 1, (1, 1), padding='valid')
@@ -243,6 +245,7 @@ def stock_predictor_critic(inputs, predictor_type, use_batch_norm, use_previous,
         raise NotImplementedError
 
     return net, auxiliary_prediction
+
 
 class StockActor(ActorNetwork):
     def __init__(self, sess, state_dim, action_dim, action_bound, learning_rate, tau, batch_size,
@@ -268,9 +271,9 @@ class StockActor(ActorNetwork):
         portfolio_reshaped = None
         if self.use_previous:
             portfolio_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
-            portfolio_reshaped = tflearn.reshape(portfolio_inputs, new_shape=[-1]+self.a_dim+[1, 1])
+            portfolio_reshaped = tflearn.reshape(portfolio_inputs, new_shape=[-1] + self.a_dim + [1, 1])
 
-        net, auxil = stock_predictor_actor(inputs, self.predictor_type, self.use_batch_norm, 
+        net, auxil = stock_predictor_actor(inputs, self.predictor_type, self.use_batch_norm,
                                            self.use_previous, portfolio_reshaped, self.actor_auxiliary_prediction,
                                            target)
         out = tf.nn.softmax(net)
@@ -280,7 +283,7 @@ class StockActor(ActorNetwork):
         future_y_inputs = None
         if self.actor_auxiliary_prediction > 0:
             future_y_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
-            loss = self.actor_auxiliary_prediction* \
+            loss = self.actor_auxiliary_prediction * \
                 tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs), axis=-1))
 
         return inputs, out, scaled_out, portfolio_inputs, loss, future_y_inputs
@@ -301,7 +304,7 @@ class StockActor(ActorNetwork):
                     self.action_gradient: a_gradient,
                     self.future_y_inputs: future_y_inputs
                 })
-            else:                
+            else:
                 self.sess.run([self.optimize, self.optimize_comm], feed_dict={
                     self.inputs: inputs,
                     self.portfolio_inputs: portfolio_inputs,
@@ -319,7 +322,7 @@ class StockActor(ActorNetwork):
             })
         else:
             return self.sess.run(self.scaled_out, feed_dict={
-                self.inputs:inputs,
+                self.inputs: inputs,
                 self.portfolio_inputs: portfolio_inputs
             })
 
@@ -354,9 +357,9 @@ class StockCritic(CriticNetwork):
         portfolio_reshaped = None
         if self.use_previous:
             portfolio_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
-            portfolio_reshaped = tflearn.reshape(portfolio_inputs, new_shape=[-1]+self.a_dim+[1, 1])
+            portfolio_reshaped = tflearn.reshape(portfolio_inputs, new_shape=[-1] + self.a_dim + [1, 1])
 
-        net, auxil = stock_predictor_critic(inputs, self.predictor_type, self.use_batch_norm, 
+        net, auxil = stock_predictor_critic(inputs, self.predictor_type, self.use_batch_norm,
                                             self.use_previous, portfolio_reshaped, self.critic_auxiliary_prediction,
                                             target)
 
@@ -364,7 +367,7 @@ class StockCritic(CriticNetwork):
         future_y_inputs = None
         if self.critic_auxiliary_prediction > 0:
             future_y_inputs = tflearn.input_data(shape=[None] + self.a_dim, name='portfolio_input')
-            loss = self.critic_auxiliary_prediction* \
+            loss = self.critic_auxiliary_prediction * \
                 tf.reduce_mean(tf.reduce_sum(tf.square(auxil - future_y_inputs), axis=-1))
 
         # Add the action tensor in the 2nd hidden layer
@@ -402,7 +405,7 @@ class StockCritic(CriticNetwork):
                     self.future_y_inputs: future_y_inputs
                 })
 
-            else:       
+            else:
                 return self.sess.run([self.out, self.optimize], feed_dict={
                     self.inputs: inputs,
                     self.portfolio_inputs: portfolio_inputs,
@@ -453,7 +456,7 @@ class StockCritic(CriticNetwork):
                 self.inputs: inputs,
                 self.portfolio_inputs: portfolio_inputs,
                 self.action: actions
-            }) 
+            })
 
 
 def obs_normalizer(observation):
@@ -526,7 +529,7 @@ if __name__ == '__main__':
 
     pprint.pprint(args)
 
-    DEBUG=args['debug']
+    DEBUG = args['debug']
     predictor_type = args['predictor_type']
     window_length = args['window_length']
     use_batch_norm = args['batch_norm']
@@ -553,7 +556,7 @@ if __name__ == '__main__':
 
     history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
     history = history[:, :, :4]
-    #history[:, 1:, 0] = history[:, 0:-1, 3] # correct opens
+    # history[:, 1:, 0] = history[:, 0:-1, 3]  # correct opens
     target_stocks = abbreviation
     num_training_time = 1095
 
@@ -598,22 +601,22 @@ if __name__ == '__main__':
     # print("test:", test_history.shape)
 
 ################################## DOW JONES ###########################################
-    # history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
-    # history = history[:, :, :4]
-    # #history[:, 1:, 2] = history[:, 0:-1, 3] # correct opens
-    # target_stocks = abbreviation
-    # num_training_time = int(history.shape[1] * 3 / 4)
+    history, abbreviation = read_stock_history_csvs(csv_directory='./datasets/')
+    history = history[:, :, :4]
+    history[:, 1:, 0] = history[:, 0:-1, 3]  # correct opens
+    target_stocks = abbreviation
+    num_training_time = int(history.shape[1] * 3 / 4)
 
-    # # get target history
-    # target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
-    # for i, stock in enumerate(target_stocks):
-    #     target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
+    # get target history
+    target_history = np.empty(shape=(len(target_stocks), num_training_time, history.shape[2]))
+    for i, stock in enumerate(target_stocks):
+        target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
 
-    # testing_stocks = abbreviation
-    # test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
-    #                                history.shape[2]))
-    # for i, stock in enumerate(testing_stocks):
-    #     test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
+    testing_stocks = abbreviation
+    test_history = np.empty(shape=(len(testing_stocks), history.shape[1] - num_training_time,
+                                   history.shape[2]))
+    for i, stock in enumerate(testing_stocks):
+        test_history[i] = history[abbreviation.index(stock), num_training_time:, :]
 
 ######################################## BITCOIN #######################################
 
@@ -659,17 +662,17 @@ if __name__ == '__main__':
     # testing_stocks = target_stocks
 
 ###############################################################################################
-    train_env = PortfolioEnv(target_history, 
-                             target_stocks, 
-                             steps=min(max_rollout_steps, target_history.shape[1]-window_length-learning_steps), 
+    train_env = PortfolioEnv(target_history,
+                             target_stocks,
+                             steps=min(max_rollout_steps, target_history.shape[1] - window_length - learning_steps),
                              window_length=window_length)
-    infer_train_env = PortfolioEnv(target_history, 
-                                   target_stocks, 
-                                   steps=target_history.shape[1]-window_length-learning_steps,
+    infer_train_env = PortfolioEnv(target_history,
+                                   target_stocks,
+                                   steps=target_history.shape[1] - window_length - learning_steps,
                                    window_length=window_length)
-    infer_test_env = PortfolioEnv(test_history, 
-                                  testing_stocks, 
-                                  steps=test_history.shape[1]-window_length-learning_steps, 
+    infer_test_env = PortfolioEnv(test_history,
+                                  testing_stocks,
+                                  steps=test_history.shape[1] - window_length - learning_steps,
                                   window_length=window_length)
     infer_train_env.reset()
     infer_test_env.reset()
@@ -679,7 +682,7 @@ if __name__ == '__main__':
     state_dim = [nb_classes, window_length]
 
     actor_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(action_dim))
-    model_save_path = get_model_path(window_length, predictor_type, use_batch_norm, 
+    model_save_path = get_model_path(window_length, predictor_type, use_batch_norm,
                                      learning_steps, gamma, auxil_commission, actor_auxil_prediction,
                                      critic_auxil_prediction)
     summary_path = get_result_path(window_length, predictor_type, use_batch_norm,
@@ -694,7 +697,7 @@ if __name__ == '__main__':
 
     with tf.variable_scope(variable_scope):
         sess = tf.Session()
-        actor = StockActor(sess=sess, state_dim=state_dim, action_dim=action_dim, action_bound=action_bound, 
+        actor = StockActor(sess=sess, state_dim=state_dim, action_dim=action_dim, action_bound=action_bound,
                            learning_rate=1e-4, tau=actor_tau, batch_size=batch_size,
                            predictor_type=predictor_type, use_batch_norm=use_batch_norm, use_previous=True,
                            auxiliary_commission=auxil_commission, actor_auxiliary_prediction=actor_auxil_prediction)

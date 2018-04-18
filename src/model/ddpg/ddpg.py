@@ -69,7 +69,7 @@ class DDPG(BaseModel):
             try:
                 if os.path.isfile(file_path):
                     os.unlink(file_path)
-                #elif os.path.isdir(file_path): shutil.rmtree(file_path)
+                # elif os.path.isdir(file_path): shutil.rmtree(file_path)
             except Exception as e:
                 print(e)
 
@@ -154,10 +154,10 @@ class DDPG(BaseModel):
                 obs, ws = episode_rollout[-1]
                 action = self.actor.predict(inputs=np.expand_dims(obs, axis=0),
                                             portfolio_inputs=np.expand_dims(ws, axis=0)).squeeze(
-                                            axis=0) + self.actor_noise()
+                    axis=0) + self.actor_noise()
                 action = np.clip(action, 0, 1)
                 if action.sum() == 0:
-                    action = np.ones(obs.shape[0])/obs.shape[0]
+                    action = np.ones(obs.shape[0]) / obs.shape[0]
                 action /= action.sum()
                 new_obs, reward, done, info = self.env.step(action)
                 new_obs, new_ws = new_obs['obs'], new_obs['weights']
@@ -175,7 +175,7 @@ class DDPG(BaseModel):
             ep_ave_min_q = 0
             # keeps sampling until done
             for j in range(self.max_rollout_steps):
-                #print(j)
+                # print(j)
                 action = self.actor.predict(inputs=np.expand_dims(episode_rollout[-1][0], axis=0),
                                             portfolio_inputs=np.expand_dims(episode_rollout[-1][1], axis=0)).squeeze(
                     axis=0) + self.actor_noise()
@@ -187,7 +187,7 @@ class DDPG(BaseModel):
 
                 action = np.clip(action, 0, 1)
                 if action.sum() == 0:
-                    action = np.ones(episode_rollout[-1][0].shape[0])/episode_rollout[-1][0].shape[0]
+                    action = np.ones(episode_rollout[-1][0].shape[0]) / episode_rollout[-1][0].shape[0]
                 action /= action.sum()
 
                 obs, reward, done, info = self.env.step(action)
@@ -212,7 +212,7 @@ class DDPG(BaseModel):
                         t_batch, sf_batch, sfw_batch = self.buffer.sample_batch(batch_size)
 
                     # Calculate targets
-                    target_q = self.critic.predict_target(inputs=sf_batch, 
+                    target_q = self.critic.predict_target(inputs=sf_batch,
                                                           action=self.actor.predict_target(inputs=sf_batch,
                                                                                            portfolio_inputs=sfw_batch),
                                                           portfolio_inputs=sfw_batch)
@@ -226,11 +226,11 @@ class DDPG(BaseModel):
                         if t_batch[k]:
                             y_i.append(total_r)
                         else:
-                            y_i.append(total_r + (gamma**len(rs_batch))*target_q[k])
+                            y_i.append(total_r + (gamma**len(rs_batch)) * target_q[k])
 
                     # Update the critic given the targets
-                    predicted_q_value, _ = self.critic.train(inputs=s1_batch, 
-                                                             action=a1_batch, 
+                    predicted_q_value, _ = self.critic.train(inputs=s1_batch,
+                                                             action=a1_batch,
                                                              predicted_q_value=np.reshape(y_i, (batch_size, 1)),
                                                              portfolio_inputs=s1w_batch,
                                                              future_y_inputs=s1y_batch)
@@ -241,10 +241,10 @@ class DDPG(BaseModel):
                     # Update the actor policy using the sampled gradient
                     a_outs = self.actor.predict(inputs=s1_batch,
                                                 portfolio_inputs=s1w_batch)
-                    grads = self.critic.action_gradients(inputs=s1_batch, 
+                    grads = self.critic.action_gradients(inputs=s1_batch,
                                                          actions=a_outs,
                                                          portfolio_inputs=s1w_batch)
-                    self.actor.train(inputs=s1_batch, 
+                    self.actor.train(inputs=s1_batch,
                                      a_gradient=grads[0],
                                      portfolio_inputs=s1w_batch,
                                      future_y_inputs=s1y_batch)
@@ -265,17 +265,17 @@ class DDPG(BaseModel):
                     writer.add_summary(summary_str, i)
                     writer.flush()
 
-                    if (i % 10) == 0:
+                    if ((i + 1) % 100) == 0:
                         print("INFERRING")
                         self.infer(i, True)
                         self.infer(i, False)
 
-                    if ((i+1) % 50) == 0:
+                    if ((i + 1) % 50) == 0:
                         print("SAVING")
                         self.save_model(i, 7, verbose=True)
 
-                    print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}, Qmin{:.4f}'.format(i, 
-                        ep_reward, (ep_ave_max_q / float(j)), (ep_ave_min_q / float(j))))
+                    print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}, Qmin{:.4f}'.format(i,
+                                                                                           ep_reward, (ep_ave_max_q / float(j)), (ep_ave_min_q / float(j))))
                     break
 
         self.save_model(i, 7, verbose=True)
@@ -356,7 +356,7 @@ class DDPG(BaseModel):
         #             observation_3 = self.obs_normalizer(observation_3)
 
         #         # add to buffer
-        #         self.buffer.add([observation_1, weights_1], action_1, reward_1, 
+        #         self.buffer.add([observation_1, weights_1], action_1, reward_1,
         #                         [observation_2, weights_2], action_2, reward_2,
         #                         done,
         #                         [observation_3, weights_3])
@@ -368,7 +368,7 @@ class DDPG(BaseModel):
         #                 t_batch, s3_batch, s3w_batch = self.buffer.sample_batch(batch_size)
 
         #             # Calculate targets
-        #             target_q = self.critic.predict_target(inputs=s3_batch, 
+        #             target_q = self.critic.predict_target(inputs=s3_batch,
         #                                                   action=self.actor.predict_target(inputs=s3_batch,
         #                                                                                    portfolio_inputs=s3w_batch),
         #                                                   portfolio_inputs=s3w_batch)
@@ -381,8 +381,8 @@ class DDPG(BaseModel):
         #                     y_i.append(r1_batch[k] + gamma * r2_batch[k] + (gamma**2)*target_q[k])
 
         #             # Update the critic given the targets
-        #             predicted_q_value, _ = self.critic.train(inputs=s1_batch, 
-        #                                                      action=a1_batch, 
+        #             predicted_q_value, _ = self.critic.train(inputs=s1_batch,
+        #                                                      action=a1_batch,
         #                                                      predicted_q_value=np.reshape(y_i, (batch_size, 1)),
         #                                                      portfolio_inputs=s1w_batch)
 
@@ -392,10 +392,10 @@ class DDPG(BaseModel):
         #             # Update the actor policy using the sampled gradient
         #             a_outs = self.actor.predict(inputs=s1_batch,
         #                                         portfolio_inputs=s1w_batch)
-        #             grads = self.critic.action_gradients(inputs=s1_batch, 
+        #             grads = self.critic.action_gradients(inputs=s1_batch,
         #                                                  actions=a_outs,
         #                                                  portfolio_inputs=s1w_batch)
-        #             self.actor.train(inputs=s1_batch, 
+        #             self.actor.train(inputs=s1_batch,
         #                              a_gradient=grads[0],
         #                              portfolio_inputs=s1w_batch)
 
@@ -423,7 +423,7 @@ class DDPG(BaseModel):
         #             if (i % 10) == 0:
         #                 self.infer(i, True)
         #                 self.infer(i, False)
-        #             print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}, Qmin{:.4f}'.format(i, 
+        #             print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}, Qmin{:.4f}'.format(i,
         #                 ep_reward, (ep_ave_max_q / float(j)), (ep_ave_min_q / float(j))))
         #             break
 
@@ -468,7 +468,7 @@ class DDPG(BaseModel):
             os.makedirs(self.model_save_path, exist_ok=True)
 
         saver = tf.train.Saver(max_to_keep=max_to_keep)
-        model_path = saver.save(self.sess, os.path.join(self.model_save_path, "checkpoint.ckpt"), 
+        model_path = saver.save(self.sess, os.path.join(self.model_save_path, "checkpoint.ckpt"),
                                 global_step=episode)
         print("Model saved in %s" % model_path)
 
@@ -534,7 +534,6 @@ class DDPG(BaseModel):
     #             plt.close()
     #             break
 
-
     def infer(self, episode, train):
         """ Must already call intialize
 
@@ -566,10 +565,10 @@ class DDPG(BaseModel):
             obs, ws = episode_rollout[-1]
             action = self.actor.predict(inputs=np.expand_dims(obs, axis=0),
                                         portfolio_inputs=np.expand_dims(ws, axis=0)).squeeze(
-                                        axis=0)
+                axis=0)
             action = np.clip(action, 0, 1)
             if action.sum() == 0:
-                action = np.ones(obs.shape[0])/obs.shape[0]
+                action = np.ones(obs.shape[0]) / obs.shape[0]
             action /= action.sum()
             new_obs, reward, done, _ = env.step(action)
             new_obs, new_ws = new_obs['obs'], new_obs['weights']
@@ -581,10 +580,10 @@ class DDPG(BaseModel):
             episode_rollout.append(done)
             episode_rollout.append([new_obs, new_ws])
 
-        for j in range(env.steps-self.learning_steps):
+        for j in range(env.steps - self.learning_steps):
             action = self.actor.predict(inputs=np.expand_dims(episode_rollout[-1][0], axis=0),
                                         portfolio_inputs=np.expand_dims(episode_rollout[-1][1], axis=0)).squeeze(
-                                        axis=0)
+                axis=0)
 
             if self.action_processor:
                 action = self.action_processor(action)
@@ -593,7 +592,7 @@ class DDPG(BaseModel):
 
             action = np.clip(action, 0, 1)
             if action.sum() == 0:
-                action = np.ones(episode_rollout[-1][0].shape[0])/episode_rollout[-1][0].shape[0]
+                action = np.ones(episode_rollout[-1][0].shape[0]) / episode_rollout[-1][0].shape[0]
             action /= action.sum()
 
             obs, reward, done, _ = env.step(action)
@@ -609,9 +608,9 @@ class DDPG(BaseModel):
 
             [episode_rollout.popleft() for _ in range(4)]
 
-            if done or j == env.steps-self.learning_steps-1:
+            if done or j == env.steps - self.learning_steps - 1:
                 label = 'train' if train else 'test'
                 env.render()
-                plt.savefig(os.path.join(self.infer_path, label + '/', str(episode)+".png"))
+                plt.savefig(os.path.join(self.infer_path, label + '/', str(episode) + ".png"))
                 plt.close()
                 break
